@@ -1,11 +1,9 @@
-
 import React, { useState } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Upload, Download, AlertTriangle, TrendingDown } from 'lucide-react';
 
 interface VehicleData {
@@ -17,16 +15,6 @@ interface VehicleData {
   burnRate: number;
   factoryOrderLeadTime: number | null;
 }
-
-type TimeFrame = 'week' | 'day' | '5days' | '30days' | 'month';
-
-const timeFrameOptions = [
-  { value: 'week', label: 'Per Week', multiplier: 1 },
-  { value: 'day', label: 'Per Day', multiplier: 7 },
-  { value: '5days', label: 'Last 5 Days', multiplier: 1.4 },
-  { value: '30days', label: 'Last 30 Days', multiplier: 0.233 },
-  { value: 'month', label: 'Per Month', multiplier: 0.25 },
-];
 
 const mockData: VehicleData[] = [
   {
@@ -78,22 +66,10 @@ const mockData: VehicleData[] = [
 
 export const VehicleInventoryTable: React.FC = () => {
   const [data, setData] = useState<VehicleData[]>(mockData);
-  const [timeFrame, setTimeFrame] = useState<TimeFrame>('week');
-
-  const getTimeFrameConfig = () => {
-    return timeFrameOptions.find(option => option.value === timeFrame) || timeFrameOptions[0];
-  };
 
   const calculateEstimatedOutOfStock = (stock: number, burnRate: number): number => {
-    const config = getTimeFrameConfig();
-    const adjustedBurnRate = burnRate / config.multiplier;
-    if (adjustedBurnRate === 0) return Infinity;
-    return Math.round((stock / adjustedBurnRate) * 10) / 10;
-  };
-
-  const getAdjustedBurnRate = (burnRate: number): number => {
-    const config = getTimeFrameConfig();
-    return Math.round((burnRate / config.multiplier) * 10) / 10;
+    if (burnRate === 0) return Infinity;
+    return Math.round((stock / burnRate) * 10) / 10;
   };
 
   const getStockStatus = (weeksUntilEmpty: number): { color: string; label: string } => {
@@ -122,56 +98,34 @@ export const VehicleInventoryTable: React.FC = () => {
               Track vehicle stock levels, burn rates, and procurement planning
             </p>
           </div>
-          <div className="flex gap-4 items-center">
-            <div className="flex items-center gap-2">
-              <label htmlFor="timeframe" className="text-sm font-medium">
-                Time Frame:
-              </label>
-              <Select value={timeFrame} onValueChange={(value: TimeFrame) => setTimeFrame(value)}>
-                <SelectTrigger id="timeframe" className="w-40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {timeFrameOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" className="gap-2">
-                <Upload className="h-4 w-4" />
-                Import Data
-              </Button>
-              <Button variant="outline" className="gap-2">
-                <Download className="h-4 w-4" />
-                Export
-              </Button>
-            </div>
+          <div className="flex gap-2">
+            <Button variant="outline" className="gap-2">
+              <Upload className="h-4 w-4" />
+              Import Data
+            </Button>
+            <Button variant="outline" className="gap-2">
+              <Download className="h-4 w-4" />
+              Export
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
           <div className="rounded-lg border bg-card">
             <Table>
               <TableHeader>
-                <TableRow className="bg-mint hover:bg-mint/80">
-                  <TableHead className="font-semibold text-white">Brand</TableHead>
-                  <TableHead className="font-semibold text-white">Model</TableHead>
-                  <TableHead className="font-semibold text-white">Version</TableHead>
-                  <TableHead className="font-semibold text-center text-white">Available Stock</TableHead>
-                  <TableHead className="font-semibold text-center text-white">
-                    Burn Rate ({getTimeFrameConfig().label.toLowerCase()})
-                  </TableHead>
-                  <TableHead className="font-semibold text-center text-white">Est. Out of Stock</TableHead>
-                  <TableHead className="font-semibold text-center text-white">Factory Lead Time (weeks)</TableHead>
-                  <TableHead className="font-semibold text-center text-white">Status</TableHead>
+                <TableRow className="bg-muted/50">
+                  <TableHead className="font-semibold">Brand</TableHead>
+                  <TableHead className="font-semibold">Model</TableHead>
+                  <TableHead className="font-semibold">Version</TableHead>
+                  <TableHead className="font-semibold text-center">Available Stock</TableHead>
+                  <TableHead className="font-semibold text-center">Burn Rate (per week)</TableHead>
+                  <TableHead className="font-semibold text-center">Est. Out of Stock</TableHead>
+                  <TableHead className="font-semibold text-center">Factory Lead Time (weeks)</TableHead>
+                  <TableHead className="font-semibold text-center">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data.map((vehicle) => {
-                  const adjustedBurnRate = getAdjustedBurnRate(vehicle.burnRate);
                   const weeksUntilEmpty = calculateEstimatedOutOfStock(vehicle.availableStock, vehicle.burnRate);
                   const status = getStockStatus(weeksUntilEmpty);
                   const needsAttention = weeksUntilEmpty <= 4;
@@ -190,7 +144,7 @@ export const VehicleInventoryTable: React.FC = () => {
                       <TableCell className="text-center">
                         <div className="flex items-center justify-center gap-1">
                           <TrendingDown className="h-3 w-3 text-muted-foreground" />
-                          <span>{adjustedBurnRate}</span>
+                          <span>{vehicle.burnRate}</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
@@ -209,7 +163,7 @@ export const VehicleInventoryTable: React.FC = () => {
                           value={vehicle.factoryOrderLeadTime ?? ''}
                           onChange={(e) => updateFactoryOrderLeadTime(vehicle.id, e.target.value)}
                           placeholder="Enter weeks"
-                          className="w-24 text-center bg-white text-black border-gray-300"
+                          className="w-24 text-center"
                         />
                       </TableCell>
                       <TableCell className="text-center">
