@@ -156,17 +156,17 @@ export const VehicleInventoryTable: React.FC = () => {
           <div className="rounded-lg border bg-card">
             <Table>
               <TableHeader>
-                <TableRow className="bg-mint hover:bg-mint">
-                  <TableHead className="font-semibold text-mint-foreground">Brand</TableHead>
-                  <TableHead className="font-semibold text-mint-foreground">Model</TableHead>
-                  <TableHead className="font-semibold text-mint-foreground">Version</TableHead>
-                  <TableHead className="font-semibold text-center text-mint-foreground">Available Stock</TableHead>
-                  <TableHead className="font-semibold text-center text-mint-foreground">
+                <TableRow className="bg-mint hover:bg-mint/80">
+                  <TableHead className="font-semibold text-white">Brand</TableHead>
+                  <TableHead className="font-semibold text-white">Model</TableHead>
+                  <TableHead className="font-semibold text-white">Version</TableHead>
+                  <TableHead className="font-semibold text-center text-white">Available Stock</TableHead>
+                  <TableHead className="font-semibold text-center text-white">
                     Burn Rate ({getTimeFrameConfig().label.toLowerCase()})
                   </TableHead>
-                  <TableHead className="font-semibold text-center text-mint-foreground">Est. Out of Stock</TableHead>
-                  <TableHead className="font-semibold text-center text-mint-foreground">Factory Lead Time (weeks)</TableHead>
-                  <TableHead className="font-semibold text-center text-mint-foreground">Status</TableHead>
+                  <TableHead className="font-semibold text-center text-white">Est. Out of Stock</TableHead>
+                  <TableHead className="font-semibold text-center text-white">Factory Lead Time (weeks)</TableHead>
+                  <TableHead className="font-semibold text-center text-white">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
