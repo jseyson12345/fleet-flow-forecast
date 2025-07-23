@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Upload, Download, AlertTriangle, TrendingDown, Calendar } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface VehicleData {
   id: string;
@@ -199,11 +200,53 @@ export const VehicleInventoryTable: React.FC = () => {
                   <TableHead className="font-semibold text-white">Version</TableHead>
                   <TableHead className="font-semibold text-center text-white">Available Stock</TableHead>
                   <TableHead className="font-semibold text-center text-white">
-                    Burn Rate ({getTimeFrameConfig().label.toLowerCase()})
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          BR ({getTimeFrameConfig().label.toLowerCase()})
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Burn Rate ({getTimeFrameConfig().label.toLowerCase()})</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </TableHead>
-                  <TableHead className="font-semibold text-center text-white">Est. Out of Stock</TableHead>
-                  <TableHead className="font-semibold text-center text-white">Factory Lead Time (weeks)</TableHead>
-                  <TableHead className="font-semibold text-center text-white">Recommended date for next order</TableHead>
+                  <TableHead className="font-semibold text-center text-white">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          EOS
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Estimated Out of Stock</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
+                  <TableHead className="font-semibold text-center text-white">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          FLT (weeks)
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Factory Lead Time (weeks)</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
+                  <TableHead className="font-semibold text-center text-white">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          ROD
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Recommended Order Date</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
                   <TableHead className="font-semibold text-center text-white">Status</TableHead>
                 </TableRow>
               </TableHeader>
