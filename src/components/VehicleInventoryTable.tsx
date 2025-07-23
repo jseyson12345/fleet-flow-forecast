@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Upload, Download, AlertTriangle, TrendingDown } from 'lucide-react';
+import { Upload, Download, AlertTriangle, TrendingDown, Calendar } from 'lucide-react';
 
 interface VehicleData {
   id: string;
@@ -103,6 +103,43 @@ export const VehicleInventoryTable: React.FC = () => {
     return { color: 'success', label: 'Good' };
   };
 
+  const calculateRecommendedOrderDate = (weeksUntilEmpty: number, factoryLeadTime: number | null): Date | null => {
+    if (factoryLeadTime === null || weeksUntilEmpty === Infinity) return null;
+    
+    const weeksToOrder = weeksUntilEmpty - factoryLeadTime;
+    const today = new Date();
+    const recommendedDate = new Date(today);
+    recommendedDate.setDate(today.getDate() + (weeksToOrder * 7));
+    
+    return recommendedDate;
+  };
+
+  const getDateStatus = (date: Date | null): { variant: string; isPast: boolean; isWithin7Days: boolean } => {
+    if (!date) return { variant: 'secondary', isPast: false, isWithin7Days: false };
+    
+    const today = new Date();
+    const diffTime = date.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    const isPast = diffDays < 0;
+    const isWithin7Days = diffDays >= 0 && diffDays <= 7;
+    
+    return { 
+      variant: isPast ? 'destructive' : isWithin7Days ? 'warning' : 'secondary',
+      isPast,
+      isWithin7Days
+    };
+  };
+
+  const formatDate = (date: Date | null): string => {
+    if (!date) return 'N/A';
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric' 
+    });
+  };
+
   const updateFactoryOrderLeadTime = (id: string, value: string) => {
     const numValue = value === '' ? null : parseInt(value, 10);
     if (numValue !== null && (isNaN(numValue) || numValue < 0)) return;
@@ -166,6 +203,7 @@ export const VehicleInventoryTable: React.FC = () => {
                   </TableHead>
                   <TableHead className="font-semibold text-center text-white">Est. Out of Stock</TableHead>
                   <TableHead className="font-semibold text-center text-white">Factory Lead Time (weeks)</TableHead>
+                  <TableHead className="font-semibold text-center text-white">Recommended date for next order</TableHead>
                   <TableHead className="font-semibold text-center text-white">Status</TableHead>
                 </TableRow>
               </TableHeader>
@@ -175,6 +213,8 @@ export const VehicleInventoryTable: React.FC = () => {
                   const weeksUntilEmpty = calculateEstimatedOutOfStock(vehicle.availableStock, vehicle.burnRate);
                   const status = getStockStatus(weeksUntilEmpty);
                   const needsAttention = weeksUntilEmpty <= 4;
+                  const recommendedOrderDate = calculateRecommendedOrderDate(weeksUntilEmpty, vehicle.factoryOrderLeadTime);
+                  const dateStatus = getDateStatus(recommendedOrderDate);
 
                   return (
                     <TableRow key={vehicle.id} className="hover:bg-muted/30 transition-colors">
@@ -211,6 +251,19 @@ export const VehicleInventoryTable: React.FC = () => {
                           placeholder="Enter weeks"
                           className="w-24 text-center bg-white text-black border-gray-300"
                         />
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          {dateStatus.isPast && <AlertTriangle className="h-4 w-4 text-destructive" />}
+                          {dateStatus.isWithin7Days && !dateStatus.isPast && <Calendar className="h-4 w-4 text-warning" />}
+                          <span className={`font-medium ${
+                            dateStatus.isPast ? 'text-destructive' : 
+                            dateStatus.isWithin7Days ? 'text-warning' : 
+                            'text-foreground'
+                          }`}>
+                            {formatDate(recommendedOrderDate)}
+                          </span>
+                        </div>
                       </TableCell>
                       <TableCell className="text-center">
                         <Badge variant={status.color as any}>
