@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Upload, Download, AlertTriangle, TrendingDown, Calendar } from 'lucide-react';
+import { Upload, Download, AlertTriangle, TrendingDown, Calendar, Eye, EyeOff } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
 import Papa from 'papaparse';
@@ -14,6 +14,7 @@ import * as XLSX from 'xlsx';
 
 interface VehicleData {
   id: string;
+  modelId?: string;
   brand: string;
   model: string;
   version: string;
@@ -23,6 +24,7 @@ interface VehicleData {
 }
 
 interface ImportedData {
+  modelId?: string;
   Brand: string;
   Model: string;
   Version: string;
@@ -91,6 +93,7 @@ const mockData: VehicleData[] = [
 export const VehicleInventoryTable: React.FC = () => {
   const [data, setData] = useState<VehicleData[]>(mockData);
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('week');
+  const [showModelId, setShowModelId] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -98,11 +101,17 @@ export const VehicleInventoryTable: React.FC = () => {
     return timeFrameOptions.find(option => option.value === timeFrame) || timeFrameOptions[0];
   };
 
-  const calculateEstimatedOutOfStock = (stock: number, burnRate: number): number => {
+  const calculateEstimatedOutOfStockDate = (stock: number, burnRate: number): Date | null => {
     const config = getTimeFrameConfig();
     const adjustedBurnRate = burnRate / config.multiplier;
-    if (adjustedBurnRate === 0) return Infinity;
-    return Math.round((stock / adjustedBurnRate) * 10) / 10;
+    if (adjustedBurnRate === 0) return null;
+    
+    const weeksUntilEmpty = stock / adjustedBurnRate;
+    const today = new Date();
+    const eosDate = new Date(today);
+    eosDate.setDate(today.getDate() + (weeksUntilEmpty * 7));
+    
+    return eosDate;
   };
 
   const getAdjustedBurnRate = (burnRate: number): number => {
@@ -110,20 +119,24 @@ export const VehicleInventoryTable: React.FC = () => {
     return Math.round((burnRate / config.multiplier) * 10) / 10;
   };
 
-  const getStockStatus = (eos: number): { color: string; label: string } => {
-    if (eos < 2) return { color: 'destructive', label: 'Critical' };
-    if (eos <= 4) return { color: 'warning', label: 'Low' };
-    if (eos <= 8) return { color: 'secondary', label: 'Medium' };
+  const getStockStatus = (eosDate: Date | null): { color: string; label: string } => {
+    if (!eosDate) return { color: 'default', label: 'Good' };
+    
+    const today = new Date();
+    const diffTime = eosDate.getTime() - today.getTime();
+    const diffWeeks = diffTime / (1000 * 60 * 60 * 24 * 7);
+    
+    if (diffWeeks < 2) return { color: 'destructive', label: 'Critical' };
+    if (diffWeeks <= 4) return { color: 'warning', label: 'Low' };
+    if (diffWeeks <= 8) return { color: 'secondary', label: 'Medium' };
     return { color: 'default', label: 'Good' };
   };
 
-  const calculateRecommendedOrderDate = (weeksUntilEmpty: number, factoryLeadTime: number | null): Date | null => {
-    if (factoryLeadTime === null || weeksUntilEmpty === Infinity) return null;
+  const calculateRecommendedOrderDate = (eosDate: Date | null, factoryLeadTimeMonths: number | null): Date | null => {
+    if (factoryLeadTimeMonths === null || !eosDate) return null;
     
-    const weeksToOrder = weeksUntilEmpty - factoryLeadTime;
-    const today = new Date();
-    const recommendedDate = new Date(today);
-    recommendedDate.setDate(today.getDate() + (weeksToOrder * 7));
+    const recommendedDate = new Date(eosDate);
+    recommendedDate.setMonth(recommendedDate.getMonth() - factoryLeadTimeMonths);
     
     return recommendedDate;
   };
@@ -170,6 +183,7 @@ export const VehicleInventoryTable: React.FC = () => {
   const parseImportedData = (importedData: ImportedData[]): VehicleData[] => {
     return importedData.map((row, index) => ({
       id: `imported-${Date.now()}-${index}`,
+      modelId: row.modelId?.toString() || '',
       brand: row.Brand?.toString() || '',
       model: row.Model?.toString() || '',
       version: row.Version?.toString() || '',
@@ -262,6 +276,17 @@ export const VehicleInventoryTable: React.FC = () => {
           </div>
           <div className="flex gap-4 items-center">
             <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowModelId(!showModelId)}
+                className="gap-2"
+              >
+                {showModelId ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                Model ID
+              </Button>
+            </div>
+            <div className="flex items-center gap-2">
               <label htmlFor="timeframe" className="text-sm font-medium">
                 Time Frame:
               </label>
@@ -302,6 +327,7 @@ export const VehicleInventoryTable: React.FC = () => {
             <Table>
               <TableHeader>
                 <TableRow className="bg-mint hover:bg-mint/80">
+                  {showModelId && <TableHead className="font-semibold text-white">Model ID</TableHead>}
                   <TableHead className="font-semibold text-white">Brand</TableHead>
                   <TableHead className="font-semibold text-white">Model</TableHead>
                   <TableHead className="font-semibold text-white">Version</TableHead>
@@ -322,10 +348,10 @@ export const VehicleInventoryTable: React.FC = () => {
                      <TooltipProvider>
                        <Tooltip>
                          <TooltipTrigger>
-                           EOS (weeks)
+                           EOS
                          </TooltipTrigger>
                          <TooltipContent>
-                           <p>Estimated Out of Stock (Available Stock / Burn Rate)</p>
+                           <p>Estimated Out of Stock Date</p>
                          </TooltipContent>
                        </Tooltip>
                      </TooltipProvider>
@@ -334,10 +360,10 @@ export const VehicleInventoryTable: React.FC = () => {
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger>
-                          FLT (weeks)
+                          FLT (months)
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p>Factory Lead Time (weeks)</p>
+                          <p>Factory Lead Time (months)</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -359,16 +385,21 @@ export const VehicleInventoryTable: React.FC = () => {
               </TableHeader>
               <TableBody>
                 {data.map((vehicle) => {
-                  const eos = vehicle.burnRate > 0 ? vehicle.availableStock / vehicle.burnRate : Infinity;
                   const adjustedBurnRate = getAdjustedBurnRate(vehicle.burnRate);
-                  const weeksUntilEmpty = calculateEstimatedOutOfStock(vehicle.availableStock, vehicle.burnRate);
-                  const status = getStockStatus(eos);
-                  const needsAttention = eos <= 4;
-                  const recommendedOrderDate = calculateRecommendedOrderDate(weeksUntilEmpty, vehicle.factoryOrderLeadTime);
+                  const eosDate = calculateEstimatedOutOfStockDate(vehicle.availableStock, vehicle.burnRate);
+                  const status = getStockStatus(eosDate);
+                  const recommendedOrderDate = calculateRecommendedOrderDate(eosDate, vehicle.factoryOrderLeadTime);
                   const dateStatus = getDateStatus(recommendedOrderDate);
+                  
+                  // Calculate weeks until empty for attention indicator
+                  const config = getTimeFrameConfig();
+                  const adjustedBurnRateForWeeks = vehicle.burnRate / config.multiplier;
+                  const weeksUntilEmpty = adjustedBurnRateForWeeks > 0 ? vehicle.availableStock / adjustedBurnRateForWeeks : Infinity;
+                  const needsAttention = weeksUntilEmpty <= 4;
 
                   return (
                     <TableRow key={vehicle.id} className="hover:bg-muted/30 transition-colors">
+                      {showModelId && <TableCell className="font-medium text-muted-foreground">{vehicle.modelId || '-'}</TableCell>}
                       <TableCell className="font-medium">{vehicle.brand}</TableCell>
                       <TableCell className="font-medium">{vehicle.model}</TableCell>
                       <TableCell className="text-muted-foreground">{vehicle.version}</TableCell>
@@ -386,11 +417,17 @@ export const VehicleInventoryTable: React.FC = () => {
                       </TableCell>
                       <TableCell className="text-center">
                         <span className={`font-medium ${
-                          eos < 2 ? 'text-destructive' : 
-                          eos <= 4 ? 'text-warning' : 
-                          'text-foreground'
+                          !eosDate ? 'text-foreground' :
+                          (() => {
+                            const today = new Date();
+                            const diffTime = eosDate.getTime() - today.getTime();
+                            const diffWeeks = diffTime / (1000 * 60 * 60 * 24 * 7);
+                            if (diffWeeks < 2) return 'text-destructive';
+                            if (diffWeeks <= 4) return 'text-warning';
+                            return 'text-foreground';
+                          })()
                         }`}>
-                          {eos === Infinity ? '∞' : `${eos.toFixed(1)}`}
+                          {formatDate(eosDate)}
                         </span>
                       </TableCell>
                       <TableCell className="text-center">
@@ -399,7 +436,7 @@ export const VehicleInventoryTable: React.FC = () => {
                           min="0"
                           value={vehicle.factoryOrderLeadTime ?? ''}
                           onChange={(e) => updateFactoryOrderLeadTime(vehicle.id, e.target.value)}
-                          placeholder="Enter weeks"
+                          placeholder="Enter months"
                           className="w-24 text-center bg-white text-black border-gray-300"
                         />
                       </TableCell>
