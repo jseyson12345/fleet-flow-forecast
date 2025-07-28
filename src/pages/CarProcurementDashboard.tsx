@@ -117,9 +117,9 @@ const CarProcurementDashboard = () => {
 
   const filteredData = data.filter(item => {
     return Object.entries(filters).every(([key, value]) => {
-      if (!value) return true;
+      if (!value || value === 'all') return true;
       if (key === 'delayed') {
-        return value === 'all' || (value === 'yes' && item.delayed) || (value === 'no' && !item.delayed);
+        return (value === 'yes' && item.delayed) || (value === 'no' && !item.delayed);
       }
       return item[key as keyof ProcurementData]?.toString().toLowerCase().includes(value.toLowerCase());
     });
@@ -153,7 +153,7 @@ const CarProcurementDashboard = () => {
                   <SelectValue placeholder="Brand" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Brands</SelectItem>
+                  <SelectItem value="all">All Brands</SelectItem>
                   {brands.map(brand => (
                     <SelectItem key={brand} value={brand}>{brand}</SelectItem>
                   ))}
@@ -165,7 +165,7 @@ const CarProcurementDashboard = () => {
                   <SelectValue placeholder="Model" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Models</SelectItem>
+                  <SelectItem value="all">All Models</SelectItem>
                   {models.map(model => (
                     <SelectItem key={model} value={model}>{model}</SelectItem>
                   ))}
@@ -177,7 +177,7 @@ const CarProcurementDashboard = () => {
                   <SelectValue placeholder="Leaseco" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Leasecos</SelectItem>
+                  <SelectItem value="all">All Leasecos</SelectItem>
                   {leasecos.map(leaseco => (
                     <SelectItem key={leaseco} value={leaseco}>{leaseco}</SelectItem>
                   ))}
@@ -189,7 +189,7 @@ const CarProcurementDashboard = () => {
                   <SelectValue placeholder="Delayed?" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
                   <SelectItem value="yes">Yes</SelectItem>
                   <SelectItem value="no">No</SelectItem>
                 </SelectContent>
@@ -217,7 +217,7 @@ const CarProcurementDashboard = () => {
                   <SelectValue placeholder="City" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Cities</SelectItem>
+                  <SelectItem value="all">All Cities</SelectItem>
                   {cities.map(city => (
                     <SelectItem key={city} value={city}>{city}</SelectItem>
                   ))}
