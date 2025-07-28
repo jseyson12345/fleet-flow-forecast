@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Upload, Download, AlertTriangle, TrendingDown, Calendar } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useToast } from '@/hooks/use-toast';
+import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 
 interface VehicleData {
   id: string;
@@ -17,6 +20,14 @@ interface VehicleData {
   availableStock: number;
   burnRate: number;
   factoryOrderLeadTime: number | null;
+}
+
+interface ImportedData {
+  Brand: string;
+  Model: string;
+  Version: string;
+  'Available Stock': number;
+  'Burn Rate': number;
 }
 
 type TimeFrame = 'week' | 'day' | '5days' | '30days' | 'month';
@@ -80,6 +91,8 @@ const mockData: VehicleData[] = [
 export const VehicleInventoryTable: React.FC = () => {
   const [data, setData] = useState<VehicleData[]>(mockData);
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('week');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   const getTimeFrameConfig = () => {
     return timeFrameOptions.find(option => option.value === timeFrame) || timeFrameOptions[0];
@@ -97,11 +110,11 @@ export const VehicleInventoryTable: React.FC = () => {
     return Math.round((burnRate / config.multiplier) * 10) / 10;
   };
 
-  const getStockStatus = (weeksUntilEmpty: number): { color: string; label: string } => {
-    if (weeksUntilEmpty <= 2) return { color: 'destructive', label: 'Critical' };
-    if (weeksUntilEmpty <= 4) return { color: 'warning', label: 'Low' };
-    if (weeksUntilEmpty <= 8) return { color: 'info', label: 'Medium' };
-    return { color: 'success', label: 'Good' };
+  const getStockStatus = (eos: number): { color: string; label: string } => {
+    if (eos < 2) return { color: 'destructive', label: 'Critical' };
+    if (eos <= 4) return { color: 'warning', label: 'Low' };
+    if (eos <= 8) return { color: 'secondary', label: 'Medium' };
+    return { color: 'default', label: 'Good' };
   };
 
   const calculateRecommendedOrderDate = (weeksUntilEmpty: number, factoryLeadTime: number | null): Date | null => {
@@ -150,6 +163,93 @@ export const VehicleInventoryTable: React.FC = () => {
     ));
   };
 
+  const handleFileImport = () => {
+    fileInputRef.current?.click();
+  };
+
+  const parseImportedData = (importedData: ImportedData[]): VehicleData[] => {
+    return importedData.map((row, index) => ({
+      id: `imported-${Date.now()}-${index}`,
+      brand: row.Brand?.toString() || '',
+      model: row.Model?.toString() || '',
+      version: row.Version?.toString() || '',
+      availableStock: Number(row['Available Stock']) || 0,
+      burnRate: Number(row['Burn Rate']) || 0,
+      factoryOrderLeadTime: null,
+    }));
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const fileName = file.name.toLowerCase();
+    
+    if (fileName.endsWith('.csv')) {
+      Papa.parse(file, {
+        complete: (results) => {
+          try {
+            const importedData = parseImportedData(results.data as ImportedData[]);
+            setData(importedData);
+            toast({
+              title: "Success!",
+              description: `Imported ${importedData.length} vehicles from CSV file.`,
+            });
+          } catch (error) {
+            toast({
+              title: "Import Error",
+              description: "Failed to parse CSV file. Please check the format.",
+              variant: "destructive",
+            });
+          }
+        },
+        header: true,
+        skipEmptyLines: true,
+        error: (error) => {
+          toast({
+            title: "Import Error",
+            description: "Failed to read CSV file.",
+            variant: "destructive",
+          });
+        }
+      });
+    } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const arrayBuffer = e.target?.result as ArrayBuffer;
+          const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet) as ImportedData[];
+          
+          const importedData = parseImportedData(jsonData);
+          setData(importedData);
+          toast({
+            title: "Success!",
+            description: `Imported ${importedData.length} vehicles from Excel file.`,
+          });
+        } catch (error) {
+          toast({
+            title: "Import Error",
+            description: "Failed to parse Excel file. Please check the format.",
+            variant: "destructive",
+          });
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      toast({
+        title: "Invalid File Type",
+        description: "Please select a CSV or Excel (.xlsx/.xls) file.",
+        variant: "destructive",
+      });
+    }
+    
+    // Reset the input
+    event.target.value = '';
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -179,7 +279,7 @@ export const VehicleInventoryTable: React.FC = () => {
               </Select>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" className="gap-2">
+              <Button variant="outline" className="gap-2" onClick={handleFileImport}>
                 <Upload className="h-4 w-4" />
                 Import Data
               </Button>
@@ -187,6 +287,13 @@ export const VehicleInventoryTable: React.FC = () => {
                 <Download className="h-4 w-4" />
                 Export
               </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                onChange={handleFileChange}
+                style={{ display: 'none' }}
+              />
             </div>
           </div>
         </CardHeader>
@@ -211,18 +318,18 @@ export const VehicleInventoryTable: React.FC = () => {
                       </Tooltip>
                     </TooltipProvider>
                   </TableHead>
-                  <TableHead className="font-semibold text-center text-white">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          EOS
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Estimated Out of Stock</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </TableHead>
+                   <TableHead className="font-semibold text-center text-white">
+                     <TooltipProvider>
+                       <Tooltip>
+                         <TooltipTrigger>
+                           EOS (weeks)
+                         </TooltipTrigger>
+                         <TooltipContent>
+                           <p>Estimated Out of Stock (Available Stock / Burn Rate)</p>
+                         </TooltipContent>
+                       </Tooltip>
+                     </TooltipProvider>
+                   </TableHead>
                   <TableHead className="font-semibold text-center text-white">
                     <TooltipProvider>
                       <Tooltip>
@@ -252,10 +359,11 @@ export const VehicleInventoryTable: React.FC = () => {
               </TableHeader>
               <TableBody>
                 {data.map((vehicle) => {
+                  const eos = vehicle.burnRate > 0 ? vehicle.availableStock / vehicle.burnRate : Infinity;
                   const adjustedBurnRate = getAdjustedBurnRate(vehicle.burnRate);
                   const weeksUntilEmpty = calculateEstimatedOutOfStock(vehicle.availableStock, vehicle.burnRate);
-                  const status = getStockStatus(weeksUntilEmpty);
-                  const needsAttention = weeksUntilEmpty <= 4;
+                  const status = getStockStatus(eos);
+                  const needsAttention = eos <= 4;
                   const recommendedOrderDate = calculateRecommendedOrderDate(weeksUntilEmpty, vehicle.factoryOrderLeadTime);
                   const dateStatus = getDateStatus(recommendedOrderDate);
 
@@ -278,11 +386,11 @@ export const VehicleInventoryTable: React.FC = () => {
                       </TableCell>
                       <TableCell className="text-center">
                         <span className={`font-medium ${
-                          weeksUntilEmpty <= 2 ? 'text-destructive' : 
-                          weeksUntilEmpty <= 4 ? 'text-warning' : 
+                          eos < 2 ? 'text-destructive' : 
+                          eos <= 4 ? 'text-warning' : 
                           'text-foreground'
                         }`}>
-                          {weeksUntilEmpty === Infinity ? '∞' : `${weeksUntilEmpty} weeks`}
+                          {eos === Infinity ? '∞' : `${eos.toFixed(1)}`}
                         </span>
                       </TableCell>
                       <TableCell className="text-center">
