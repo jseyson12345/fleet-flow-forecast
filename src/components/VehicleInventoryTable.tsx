@@ -1,12 +1,12 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Upload, Download, AlertTriangle, TrendingDown, Calendar, Eye, EyeOff } from 'lucide-react';
+import { Upload, Download, AlertTriangle, TrendingDown, Calendar, Eye, EyeOff, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
 import Papa from 'papaparse';
@@ -33,6 +33,12 @@ interface ImportedData {
 }
 
 type TimeFrame = 'week' | 'day' | '5days' | '30days' | 'month';
+type SortField = 'brand' | 'model' | 'version' | 'availableStock' | 'burnRate' | 'eosDate' | 'factoryOrderLeadTime' | 'rodDate' | 'status';
+type SortDirection = 'asc' | 'desc';
+
+interface FLTStorage {
+  [modelId: string]: number;
+}
 
 const timeFrameOptions = [
   { value: 'week', label: 'Per Week', multiplier: 1 },
@@ -41,6 +47,11 @@ const timeFrameOptions = [
   { value: '30days', label: 'Last 30 Days', multiplier: 0.233 },
   { value: 'month', label: 'Per Month', multiplier: 0.25 },
 ];
+
+const STORAGE_KEYS = {
+  VEHICLE_DATA: 'vehicle_inventory_data',
+  FLT_VALUES: 'vehicle_inventory_flt_values',
+};
 
 const mockData: VehicleData[] = [
   {
@@ -91,25 +102,64 @@ const mockData: VehicleData[] = [
 ];
 
 export const VehicleInventoryTable: React.FC = () => {
-  const [data, setData] = useState<VehicleData[]>(mockData);
+  const [data, setData] = useState<VehicleData[]>([]);
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('week');
   const [showModelId, setShowModelId] = useState(false);
+  const [fltValues, setFltValues] = useState<FLTStorage>({});
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  // Load persisted data on mount
+  useEffect(() => {
+    const savedData = localStorage.getItem(STORAGE_KEYS.VEHICLE_DATA);
+    const savedFLT = localStorage.getItem(STORAGE_KEYS.FLT_VALUES);
+    
+    if (savedData) {
+      try {
+        setData(JSON.parse(savedData));
+      } catch (error) {
+        console.error('Failed to load saved data:', error);
+        setData(mockData);
+      }
+    } else {
+      setData(mockData);
+    }
+    
+    if (savedFLT) {
+      try {
+        setFltValues(JSON.parse(savedFLT));
+      } catch (error) {
+        console.error('Failed to load saved FLT values:', error);
+      }
+    }
+  }, []);
+
+  // Save data to localStorage whenever it changes
+  useEffect(() => {
+    if (data.length > 0) {
+      localStorage.setItem(STORAGE_KEYS.VEHICLE_DATA, JSON.stringify(data));
+    }
+  }, [data]);
+
+  // Save FLT values to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.FLT_VALUES, JSON.stringify(fltValues));
+  }, [fltValues]);
 
   const getTimeFrameConfig = () => {
     return timeFrameOptions.find(option => option.value === timeFrame) || timeFrameOptions[0];
   };
 
+  // EOS calculation should always use monthly burn rate regardless of time frame
   const calculateEstimatedOutOfStockDate = (stock: number, burnRate: number): Date | null => {
-    const config = getTimeFrameConfig();
-    const adjustedBurnRate = burnRate / config.multiplier;
-    if (adjustedBurnRate === 0) return null;
+    if (burnRate === 0) return null;
     
-    const weeksUntilEmpty = stock / adjustedBurnRate;
+    const monthsUntilEmpty = stock / burnRate;
     const today = new Date();
     const eosDate = new Date(today);
-    eosDate.setDate(today.getDate() + (weeksUntilEmpty * 7));
+    eosDate.setMonth(today.getMonth() + monthsUntilEmpty);
     
     return eosDate;
   };
@@ -171,10 +221,115 @@ export const VehicleInventoryTable: React.FC = () => {
     const numValue = value === '' ? null : parseInt(value, 10);
     if (numValue !== null && (isNaN(numValue) || numValue < 0)) return;
     
-    setData(prev => prev.map(item => 
-      item.id === id ? { ...item, factoryOrderLeadTime: numValue } : item
-    ));
+    // Find the vehicle and update both data and FLT storage
+    setData(prev => prev.map(item => {
+      if (item.id === id) {
+        const updatedItem = { ...item, factoryOrderLeadTime: numValue };
+        // Store FLT value by modelId for future imports
+        if (item.modelId && numValue !== null) {
+          setFltValues(prevFlt => ({
+            ...prevFlt,
+            [item.modelId!]: numValue
+          }));
+        }
+        return updatedItem;
+      }
+      return item;
+    }));
   };
+
+  // Apply stored FLT values to imported data
+  const applyStoredFLTValues = (importedData: VehicleData[]): VehicleData[] => {
+    return importedData.map(item => ({
+      ...item,
+      factoryOrderLeadTime: item.modelId && fltValues[item.modelId] 
+        ? fltValues[item.modelId] 
+        : item.factoryOrderLeadTime
+    }));
+  };
+
+  // Sorting functionality
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="h-4 w-4 ml-1 opacity-50" />;
+    }
+    return sortDirection === 'asc' 
+      ? <ArrowUp className="h-4 w-4 ml-1" />
+      : <ArrowDown className="h-4 w-4 ml-1" />;
+  };
+
+  const sortedData = useMemo(() => {
+    if (!sortField) return data;
+
+    return [...data].sort((a, b) => {
+      let aValue: any;
+      let bValue: any;
+
+      switch (sortField) {
+        case 'brand':
+          aValue = a.brand;
+          bValue = b.brand;
+          break;
+        case 'model':
+          aValue = a.model;
+          bValue = b.model;
+          break;
+        case 'version':
+          aValue = a.version;
+          bValue = b.version;
+          break;
+        case 'availableStock':
+          aValue = a.availableStock;
+          bValue = b.availableStock;
+          break;
+        case 'burnRate':
+          aValue = a.burnRate;
+          bValue = b.burnRate;
+          break;
+        case 'eosDate':
+          aValue = calculateEstimatedOutOfStockDate(a.availableStock, a.burnRate)?.getTime() || 0;
+          bValue = calculateEstimatedOutOfStockDate(b.availableStock, b.burnRate)?.getTime() || 0;
+          break;
+        case 'factoryOrderLeadTime':
+          aValue = a.factoryOrderLeadTime || 0;
+          bValue = b.factoryOrderLeadTime || 0;
+          break;
+        case 'rodDate':
+          const aEos = calculateEstimatedOutOfStockDate(a.availableStock, a.burnRate);
+          const bEos = calculateEstimatedOutOfStockDate(b.availableStock, b.burnRate);
+          aValue = calculateRecommendedOrderDate(aEos, a.factoryOrderLeadTime)?.getTime() || 0;
+          bValue = calculateRecommendedOrderDate(bEos, b.factoryOrderLeadTime)?.getTime() || 0;
+          break;
+        case 'status':
+          const aStatus = getStockStatus(calculateEstimatedOutOfStockDate(a.availableStock, a.burnRate));
+          const bStatus = getStockStatus(calculateEstimatedOutOfStockDate(b.availableStock, b.burnRate));
+          aValue = aStatus.label;
+          bValue = bStatus.label;
+          break;
+        default:
+          return 0;
+      }
+
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return sortDirection === 'asc' 
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      }
+
+      return sortDirection === 'asc' 
+        ? (aValue > bValue ? 1 : -1)
+        : (bValue > aValue ? 1 : -1);
+    });
+  }, [data, sortField, sortDirection]);
 
   const handleFileImport = () => {
     fileInputRef.current?.click();
@@ -204,10 +359,11 @@ export const VehicleInventoryTable: React.FC = () => {
         complete: (results) => {
           try {
             const importedData = parseImportedData(results.data as ImportedData[]);
-            setData(importedData);
+            const dataWithStoredFLT = applyStoredFLTValues(importedData);
+            setData(dataWithStoredFLT);
             toast({
               title: "Success!",
-              description: `Imported ${importedData.length} vehicles from CSV file.`,
+              description: `Imported ${dataWithStoredFLT.length} vehicles from CSV file.`,
             });
           } catch (error) {
             toast({
@@ -238,10 +394,11 @@ export const VehicleInventoryTable: React.FC = () => {
           const jsonData = XLSX.utils.sheet_to_json(worksheet) as ImportedData[];
           
           const importedData = parseImportedData(jsonData);
-          setData(importedData);
+          const dataWithStoredFLT = applyStoredFLTValues(importedData);
+          setData(dataWithStoredFLT);
           toast({
             title: "Success!",
-            description: `Imported ${importedData.length} vehicles from Excel file.`,
+            description: `Imported ${dataWithStoredFLT.length} vehicles from Excel file.`,
           });
         } catch (error) {
           toast({
@@ -327,64 +484,132 @@ export const VehicleInventoryTable: React.FC = () => {
             <Table>
               <TableHeader>
                 <TableRow className="bg-mint hover:bg-mint/80">
-                  {showModelId && <TableHead className="font-semibold text-white">Model ID</TableHead>}
-                  <TableHead className="font-semibold text-white">Brand</TableHead>
-                  <TableHead className="font-semibold text-white">Model</TableHead>
-                  <TableHead className="font-semibold text-white">Version</TableHead>
-                  <TableHead className="font-semibold text-center text-white">Available Stock</TableHead>
-                  <TableHead className="font-semibold text-center text-white">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          BR ({getTimeFrameConfig().label.toLowerCase()})
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Burn Rate ({getTimeFrameConfig().label.toLowerCase()})</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                  {showModelId && (
+                    <TableHead className="font-semibold text-white">
+                      Model ID
+                    </TableHead>
+                  )}
+                  <TableHead 
+                    className="font-semibold text-white cursor-pointer hover:bg-mint/60 transition-colors"
+                    onClick={() => handleSort('brand')}
+                  >
+                    <div className="flex items-center">
+                      Brand
+                      {getSortIcon('brand')}
+                    </div>
                   </TableHead>
-                   <TableHead className="font-semibold text-center text-white">
-                     <TooltipProvider>
-                       <Tooltip>
-                         <TooltipTrigger>
-                           EOS
-                         </TooltipTrigger>
-                         <TooltipContent>
-                           <p>Estimated Out of Stock Date</p>
-                         </TooltipContent>
-                       </Tooltip>
-                     </TooltipProvider>
-                   </TableHead>
-                  <TableHead className="font-semibold text-center text-white">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          FLT (months)
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Factory Lead Time (months)</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                  <TableHead 
+                    className="font-semibold text-white cursor-pointer hover:bg-mint/60 transition-colors"
+                    onClick={() => handleSort('model')}
+                  >
+                    <div className="flex items-center">
+                      Model
+                      {getSortIcon('model')}
+                    </div>
                   </TableHead>
-                  <TableHead className="font-semibold text-center text-white">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          ROD
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Recommended Order Date</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                  <TableHead 
+                    className="font-semibold text-white cursor-pointer hover:bg-mint/60 transition-colors"
+                    onClick={() => handleSort('version')}
+                  >
+                    <div className="flex items-center">
+                      Version
+                      {getSortIcon('version')}
+                    </div>
                   </TableHead>
-                  <TableHead className="font-semibold text-center text-white">Status</TableHead>
+                  <TableHead 
+                    className="font-semibold text-center text-white cursor-pointer hover:bg-mint/60 transition-colors"
+                    onClick={() => handleSort('availableStock')}
+                  >
+                    <div className="flex items-center justify-center">
+                      Available Stock
+                      {getSortIcon('availableStock')}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="font-semibold text-center text-white cursor-pointer hover:bg-mint/60 transition-colors"
+                    onClick={() => handleSort('burnRate')}
+                  >
+                    <div className="flex items-center justify-center">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            BR ({getTimeFrameConfig().label.toLowerCase()})
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Burn Rate ({getTimeFrameConfig().label.toLowerCase()})</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      {getSortIcon('burnRate')}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="font-semibold text-center text-white cursor-pointer hover:bg-mint/60 transition-colors"
+                    onClick={() => handleSort('eosDate')}
+                  >
+                    <div className="flex items-center justify-center">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            EOS
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Estimated Out of Stock Date</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      {getSortIcon('eosDate')}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="font-semibold text-center text-white cursor-pointer hover:bg-mint/60 transition-colors"
+                    onClick={() => handleSort('factoryOrderLeadTime')}
+                  >
+                    <div className="flex items-center justify-center">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            FLT (months)
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Factory Lead Time (months)</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      {getSortIcon('factoryOrderLeadTime')}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="font-semibold text-center text-white cursor-pointer hover:bg-mint/60 transition-colors"
+                    onClick={() => handleSort('rodDate')}
+                  >
+                    <div className="flex items-center justify-center">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            ROD
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Recommended Order Date</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      {getSortIcon('rodDate')}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="font-semibold text-center text-white cursor-pointer hover:bg-mint/60 transition-colors"
+                    onClick={() => handleSort('status')}
+                  >
+                    <div className="flex items-center justify-center">
+                      Status
+                      {getSortIcon('status')}
+                    </div>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.map((vehicle) => {
+                {sortedData.map((vehicle) => {
                   const adjustedBurnRate = getAdjustedBurnRate(vehicle.burnRate);
                   const eosDate = calculateEstimatedOutOfStockDate(vehicle.availableStock, vehicle.burnRate);
                   const status = getStockStatus(eosDate);
@@ -444,13 +669,28 @@ export const VehicleInventoryTable: React.FC = () => {
                         <div className="flex items-center justify-center gap-2">
                           {dateStatus.isPast && <AlertTriangle className="h-4 w-4 text-destructive" />}
                           {dateStatus.isWithin7Days && !dateStatus.isPast && <Calendar className="h-4 w-4 text-warning" />}
-                          <span className={`font-medium ${
-                            dateStatus.isPast ? 'text-destructive' : 
-                            dateStatus.isWithin7Days ? 'text-warning' : 
-                            'text-foreground'
-                          }`}>
-                            {formatDate(recommendedOrderDate)}
-                          </span>
+                          {dateStatus.isPast && recommendedOrderDate ? (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <span className="font-medium text-destructive cursor-help">
+                                    ASAP
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Original date: {formatDate(recommendedOrderDate)}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          ) : (
+                            <span className={`font-medium ${
+                              dateStatus.isPast ? 'text-destructive' : 
+                              dateStatus.isWithin7Days ? 'text-warning' : 
+                              'text-foreground'
+                            }`}>
+                              {formatDate(recommendedOrderDate)}
+                            </span>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
