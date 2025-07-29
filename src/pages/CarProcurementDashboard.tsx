@@ -14,11 +14,16 @@ interface ProcurementData {
   brand: string;
   model: string;
   version: string;
+  color?: string;
+  revelIdCar?: string;
+  status?: string;
+  project?: string;
   leaseco: string;
   clientName: string;
   city: string;
   internalUsageDate: string;
   promisedDate: string;
+  displayedDateToClient: string;
   delayed: boolean;
   requestDate: string;
   licensePlate?: string;
@@ -30,6 +35,19 @@ interface ProcurementData {
   clientComments?: string;
   desiredDeliveryDate: string;
   contractEndDate: string;
+  // Leaseco dates
+  leasecoRequestDate?: string;
+  etdDate?: string;
+  registrationStartDate?: string;
+  deliveryReadyDate?: string;
+  // Tracker dates
+  trackerRequestDate?: string;
+  estimatedInstallationDate?: string;
+  actualInstallationDate?: string;
+  // Delivery dealer info
+  dealerName?: string;
+  contactPerson?: string;
+  phoneEmail?: string;
 }
 
 // Mock data - in real app this would come from HubSpot
@@ -39,11 +57,16 @@ const mockData: ProcurementData[] = [
     brand: 'BMW',
     model: 'X3',
     version: 'xDrive20d',
+    color: 'Mineral Grey Metallic',
+    revelIdCar: 'RVL-BMW-001',
+    status: 'In Transit',
+    project: 'Corporate Fleet 2024',
     leaseco: 'ALD Automotive',
     clientName: 'Juan García',
     city: 'Madrid',
     internalUsageDate: '2024-02-15',
     promisedDate: '2024-02-10',
+    displayedDateToClient: '2024-02-12',
     delayed: true,
     requestDate: '2024-01-10',
     licensePlate: '1234ABC',
@@ -54,18 +77,32 @@ const mockData: ProcurementData[] = [
     currentEstimatedDelivery: '2024-02-15',
     clientComments: 'Client prefers delivery in the morning',
     desiredDeliveryDate: '2024-02-08',
-    contractEndDate: '2027-02-10'
+    contractEndDate: '2027-02-10',
+    leasecoRequestDate: '2024-01-12',
+    etdDate: '2024-02-01',
+    registrationStartDate: '2024-02-03',
+    deliveryReadyDate: '2024-02-14',
+    trackerRequestDate: '2024-02-05',
+    estimatedInstallationDate: '2024-02-10',
+    actualInstallationDate: '2024-02-09',
+    dealerName: 'BMW Madrid Centro',
+    contactPerson: 'Ana Ruiz',
+    phoneEmail: '+34 91 123 4567 / ana.ruiz@bmwmadrid.com'
   },
   {
     id: '2',
     brand: 'Audi',
     model: 'A4',
     version: '2.0 TDI',
+    color: 'Ibis White',
+    revelIdCar: 'RVL-AUDI-002',
+    status: 'Order Placed',
     leaseco: 'Renting Finders',
     clientName: 'María López',
     city: 'Barcelona',
     internalUsageDate: '2024-02-20',
     promisedDate: '2024-02-25',
+    displayedDateToClient: '2024-02-25',
     delayed: false,
     requestDate: '2024-01-15',
     licensePlate: '',
@@ -75,18 +112,26 @@ const mockData: ProcurementData[] = [
     promisedDateAtSigning: '2024-02-25',
     currentEstimatedDelivery: '2024-02-20',
     desiredDeliveryDate: '2024-02-22',
-    contractEndDate: '2027-02-25'
+    contractEndDate: '2027-02-25',
+    leasecoRequestDate: '2024-01-17',
+    trackerRequestDate: '2024-02-15',
+    estimatedInstallationDate: '2024-02-20'
   },
   {
     id: '3',
     brand: 'Mercedes',
     model: 'C-Class',
     version: 'C200d',
+    color: 'Obsidian Black Metallic',
+    revelIdCar: 'RVL-MERC-003',
+    status: 'Production',
+    project: 'Executive Fleet',
     leaseco: 'Alphabet',
     clientName: 'Carlos Martín',
     city: 'Valencia',
     internalUsageDate: '2024-03-01',
     promisedDate: '2024-02-28',
+    displayedDateToClient: '2024-03-05',
     delayed: true,
     requestDate: '2024-01-20',
     licensePlate: '5678DEF',
@@ -97,7 +142,16 @@ const mockData: ProcurementData[] = [
     currentEstimatedDelivery: '2024-03-01',
     clientComments: 'Urgent delivery needed',
     desiredDeliveryDate: '2024-02-26',
-    contractEndDate: '2027-02-28'
+    contractEndDate: '2027-02-28',
+    leasecoRequestDate: '2024-01-22',
+    etdDate: '2024-02-20',
+    registrationStartDate: '2024-02-22',
+    deliveryReadyDate: '2024-03-01',
+    trackerRequestDate: '2024-02-25',
+    estimatedInstallationDate: '2024-03-01',
+    dealerName: 'Mercedes Valencia',
+    contactPerson: 'Pedro Sánchez',
+    phoneEmail: '+34 96 987 6543 / pedro.sanchez@mbvalencia.com'
   }
 ];
 
@@ -293,36 +347,173 @@ const CarProcurementDashboard = () => {
                               {item.brand}
                             </Button>
                           </SheetTrigger>
-                          <SheetContent>
+                          <SheetContent className="w-[500px] overflow-y-auto">
                             <SheetHeader>
                               <SheetTitle className="flex items-center gap-2">
                                 <Calendar className="h-5 w-5" />
                                 Car Details: {item.brand} {item.model}
                               </SheetTitle>
                             </SheetHeader>
-                            <div className="mt-6 space-y-4">
-                              <div>
-                                <label className="text-sm font-medium text-muted-foreground">Request Date</label>
-                                <p className="text-sm">{new Date(item.requestDate).toLocaleDateString()}</p>
+                            
+                            <div className="mt-6 space-y-6">
+                              {/* Basic Information */}
+                              <div className="space-y-3">
+                                <h3 className="text-lg font-semibold text-foreground border-b pb-2">Basic Information</h3>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Leaseco</label>
+                                    <p className="text-sm">{item.leaseco}</p>
+                                  </div>
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Brand</label>
+                                    <p className="text-sm">{item.brand}</p>
+                                  </div>
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Model</label>
+                                    <p className="text-sm">{item.model}</p>
+                                  </div>
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Version</label>
+                                    <p className="text-sm">{item.version}</p>
+                                  </div>
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Color</label>
+                                    <p className="text-sm">{item.color || 'Not specified'}</p>
+                                  </div>
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">RevelIdCar</label>
+                                    <p className="text-sm">{item.revelIdCar || 'Not assigned'}</p>
+                                  </div>
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Status</label>
+                                    <p className="text-sm">{item.status || 'Unknown'}</p>
+                                  </div>
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Project</label>
+                                    <p className="text-sm">{item.project || 'Not assigned'}</p>
+                                  </div>
+                                </div>
                               </div>
-                              <div>
-                                <label className="text-sm font-medium text-muted-foreground">License Plate</label>
-                                <p className="text-sm">{item.licensePlate || 'Not assigned'}</p>
+
+                              {/* Identification */}
+                              <div className="space-y-3">
+                                <h3 className="text-lg font-semibold text-foreground border-b pb-2">Identification</h3>
+                                <div className="grid grid-cols-1 gap-3">
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">License Plate</label>
+                                    <p className="text-sm">{item.licensePlate || 'Not assigned'}</p>
+                                  </div>
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Chassis Number</label>
+                                    <p className="text-sm">{item.vin || 'Not assigned'}</p>
+                                  </div>
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Contract Reference</label>
+                                    <p className="text-sm">{item.contractReference || 'Not assigned'}</p>
+                                  </div>
+                                </div>
                               </div>
-                              <div>
-                                <label className="text-sm font-medium text-muted-foreground">VIN</label>
-                                <p className="text-sm">{item.vin || 'Not assigned'}</p>
+
+                              {/* Key Dates */}
+                              <div className="space-y-3">
+                                <h3 className="text-lg font-semibold text-foreground border-b pb-2">Key Dates</h3>
+                                <div className="grid grid-cols-1 gap-3">
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Internal Use Date</label>
+                                    <p className="text-sm">{new Date(item.internalUsageDate).toLocaleDateString()}</p>
+                                  </div>
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Promised Date to Client</label>
+                                    <p className="text-sm">{new Date(item.promisedDate).toLocaleDateString()}</p>
+                                  </div>
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Displayed Date to Client</label>
+                                    <p className="text-sm">{new Date(item.displayedDateToClient).toLocaleDateString()}</p>
+                                  </div>
+                                </div>
                               </div>
-                              <div>
-                                <label className="text-sm font-medium text-muted-foreground">Contract Reference</label>
-                                <p className="text-sm">{item.contractReference || 'Not assigned'}</p>
-                              </div>
-                              <div>
-                                <label className="text-sm font-medium text-muted-foreground">Availability Date</label>
-                                <p className="text-sm">
-                                  {item.availabilityDate ? new Date(item.availabilityDate).toLocaleDateString() : 'Not confirmed'}
-                                </p>
-                              </div>
+
+                              {/* Leaseco Dates - Collapsible */}
+                              <Collapsible>
+                                <CollapsibleTrigger asChild>
+                                  <Button variant="outline" className="w-full justify-between">
+                                    <span className="font-semibold">Leaseco Dates</span>
+                                    <ChevronDown className="h-4 w-4" />
+                                  </Button>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent className="mt-3 space-y-3">
+                                  <div className="grid grid-cols-1 gap-3">
+                                    <div>
+                                      <label className="text-sm font-medium text-muted-foreground">Leaseco Request Date</label>
+                                      <p className="text-sm">{item.leasecoRequestDate ? new Date(item.leasecoRequestDate).toLocaleDateString() : 'Not available'}</p>
+                                    </div>
+                                    <div>
+                                      <label className="text-sm font-medium text-muted-foreground">ETD Date</label>
+                                      <p className="text-sm">{item.etdDate ? new Date(item.etdDate).toLocaleDateString() : 'Not available'}</p>
+                                    </div>
+                                    <div>
+                                      <label className="text-sm font-medium text-muted-foreground">Registration Start Date</label>
+                                      <p className="text-sm">{item.registrationStartDate ? new Date(item.registrationStartDate).toLocaleDateString() : 'Not available'}</p>
+                                    </div>
+                                    <div>
+                                      <label className="text-sm font-medium text-muted-foreground">Delivery Ready Date</label>
+                                      <p className="text-sm">{item.deliveryReadyDate ? new Date(item.deliveryReadyDate).toLocaleDateString() : 'Not available'}</p>
+                                    </div>
+                                  </div>
+                                </CollapsibleContent>
+                              </Collapsible>
+
+                              {/* Tracker Dates - Collapsible */}
+                              <Collapsible>
+                                <CollapsibleTrigger asChild>
+                                  <Button variant="outline" className="w-full justify-between">
+                                    <span className="font-semibold">Tracker Dates</span>
+                                    <ChevronDown className="h-4 w-4" />
+                                  </Button>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent className="mt-3 space-y-3">
+                                  <div className="grid grid-cols-1 gap-3">
+                                    <div>
+                                      <label className="text-sm font-medium text-muted-foreground">Tracker Request Date</label>
+                                      <p className="text-sm">{item.trackerRequestDate ? new Date(item.trackerRequestDate).toLocaleDateString() : 'Not available'}</p>
+                                    </div>
+                                    <div>
+                                      <label className="text-sm font-medium text-muted-foreground">Estimated Installation Date</label>
+                                      <p className="text-sm">{item.estimatedInstallationDate ? new Date(item.estimatedInstallationDate).toLocaleDateString() : 'Not available'}</p>
+                                    </div>
+                                    <div>
+                                      <label className="text-sm font-medium text-muted-foreground">Actual Installation Date</label>
+                                      <p className="text-sm">{item.actualInstallationDate ? new Date(item.actualInstallationDate).toLocaleDateString() : 'Not available'}</p>
+                                    </div>
+                                  </div>
+                                </CollapsibleContent>
+                              </Collapsible>
+
+                              {/* Delivery Dealer Info - Collapsible */}
+                              <Collapsible>
+                                <CollapsibleTrigger asChild>
+                                  <Button variant="outline" className="w-full justify-between">
+                                    <span className="font-semibold">Delivery Dealer Info</span>
+                                    <ChevronDown className="h-4 w-4" />
+                                  </Button>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent className="mt-3 space-y-3">
+                                  <div className="grid grid-cols-1 gap-3">
+                                    <div>
+                                      <label className="text-sm font-medium text-muted-foreground">Dealer Name</label>
+                                      <p className="text-sm">{item.dealerName || 'Not assigned'}</p>
+                                    </div>
+                                    <div>
+                                      <label className="text-sm font-medium text-muted-foreground">Contact Person</label>
+                                      <p className="text-sm">{item.contactPerson || 'Not assigned'}</p>
+                                    </div>
+                                    <div>
+                                      <label className="text-sm font-medium text-muted-foreground">Phone / Email</label>
+                                      <p className="text-sm">{item.phoneEmail || 'Not available'}</p>
+                                    </div>
+                                  </div>
+                                </CollapsibleContent>
+                              </Collapsible>
                             </div>
                           </SheetContent>
                         </Sheet>
@@ -337,39 +528,106 @@ const CarProcurementDashboard = () => {
                               {item.clientName}
                             </Button>
                           </SheetTrigger>
-                          <SheetContent>
+                          <SheetContent className="w-[500px] overflow-y-auto">
                             <SheetHeader>
                               <SheetTitle className="flex items-center gap-2">
                                 <User className="h-5 w-5" />
                                 Client Details: {item.clientName}
                               </SheetTitle>
                             </SheetHeader>
-                            <div className="mt-6 space-y-4">
-                              <div>
-                                <label className="text-sm font-medium text-muted-foreground">Promised Date at Contract Signing</label>
-                                <p className="text-sm">{new Date(item.promisedDateAtSigning).toLocaleDateString()}</p>
+                            
+                            <div className="mt-6 space-y-6">
+                              {/* Personal Information */}
+                              <div className="space-y-3">
+                                <h3 className="text-lg font-semibold text-foreground border-b pb-2">Personal Information</h3>
+                                <div className="grid grid-cols-1 gap-3">
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Full Name</label>
+                                    <p className="text-sm">{item.clientName}</p>
+                                  </div>
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">City / Location</label>
+                                    <p className="text-sm">{item.city}</p>
+                                  </div>
+                                </div>
                               </div>
-                              <div>
-                                <label className="text-sm font-medium text-muted-foreground">Will we meet the promise?</label>
-                                <Badge variant={item.delayed ? "destructive" : "default"}>
-                                  {item.delayed ? "No" : "Yes"}
-                                </Badge>
+
+                              {/* Key Dates */}
+                              <div className="space-y-3">
+                                <h3 className="text-lg font-semibold text-foreground border-b pb-2">Key Dates</h3>
+                                <div className="grid grid-cols-1 gap-3">
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Internal Use Date</label>
+                                    <p className="text-sm">{new Date(item.internalUsageDate).toLocaleDateString()}</p>
+                                  </div>
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Promised Date to Client</label>
+                                    <p className="text-sm">{new Date(item.promisedDate).toLocaleDateString()}</p>
+                                  </div>
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Displayed Date to Client</label>
+                                    <p className="text-sm">{new Date(item.displayedDateToClient).toLocaleDateString()}</p>
+                                  </div>
+                                </div>
                               </div>
-                              <div>
-                                <label className="text-sm font-medium text-muted-foreground">Current Estimated Delivery Date</label>
-                                <p className="text-sm">{new Date(item.currentEstimatedDelivery).toLocaleDateString()}</p>
+
+                              {/* Assigned Car - Collapsible */}
+                              <Collapsible>
+                                <CollapsibleTrigger asChild>
+                                  <Button variant="outline" className="w-full justify-between">
+                                    <span className="font-semibold">Assigned Car</span>
+                                    <ChevronDown className="h-4 w-4" />
+                                  </Button>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent className="mt-3 space-y-3">
+                                  <div className="grid grid-cols-1 gap-3">
+                                    <div>
+                                      <label className="text-sm font-medium text-muted-foreground">RevelIdCar</label>
+                                      <p className="text-sm">{item.revelIdCar || 'Not assigned'}</p>
+                                    </div>
+                                    <div>
+                                      <label className="text-sm font-medium text-muted-foreground">License Plate</label>
+                                      <p className="text-sm">{item.licensePlate || 'Not assigned'}</p>
+                                    </div>
+                                    <div>
+                                      <label className="text-sm font-medium text-muted-foreground">Chassis Number</label>
+                                      <p className="text-sm">{item.vin || 'Not assigned'}</p>
+                                    </div>
+                                    <div>
+                                      <label className="text-sm font-medium text-muted-foreground">Contract Reference</label>
+                                      <p className="text-sm">{item.contractReference || 'Not assigned'}</p>
+                                    </div>
+                                  </div>
+                                </CollapsibleContent>
+                              </Collapsible>
+
+                              {/* Delivery Status */}
+                              <div className="space-y-3">
+                                <h3 className="text-lg font-semibold text-foreground border-b pb-2">Delivery Status</h3>
+                                <div className="grid grid-cols-1 gap-3">
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Will we meet the promised date?</label>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <Badge variant={item.delayed ? "destructive" : "default"}>
+                                        {item.delayed ? "No" : "Yes"}
+                                      </Badge>
+                                      <span className="text-xs text-muted-foreground">
+                                        (Based on Internal Use Date vs. Promised Date)
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
                               </div>
-                              <div>
-                                <label className="text-sm font-medium text-muted-foreground">Client Comments</label>
-                                <p className="text-sm">{item.clientComments || 'No comments'}</p>
-                              </div>
-                              <div>
-                                <label className="text-sm font-medium text-muted-foreground">Desired Delivery Date</label>
-                                <p className="text-sm">{new Date(item.desiredDeliveryDate).toLocaleDateString()}</p>
-                              </div>
-                              <div>
-                                <label className="text-sm font-medium text-muted-foreground">Contract End Date</label>
-                                <p className="text-sm">{new Date(item.contractEndDate).toLocaleDateString()}</p>
+
+                              {/* Comments */}
+                              <div className="space-y-3">
+                                <h3 className="text-lg font-semibold text-foreground border-b pb-2">Comments</h3>
+                                <div className="grid grid-cols-1 gap-3">
+                                  <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Any relevant comment</label>
+                                    <p className="text-sm bg-muted/50 p-3 rounded-md border">{item.clientComments || 'No comments available'}</p>
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           </SheetContent>
