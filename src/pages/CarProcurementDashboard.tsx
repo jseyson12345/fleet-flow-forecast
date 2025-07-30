@@ -244,7 +244,22 @@ const CarProcurementDashboard = () => {
       // Helper function to parse dates or return undefined/empty string for empty values
       const parseDate = (dateValue: any) => {
         if (!dateValue || dateValue === '') return '';
-        // Handle Excel date format or string date
+        
+        // Handle dd/mm/yyyy format
+        if (typeof dateValue === 'string' && dateValue.includes('/')) {
+          const parts = dateValue.split('/');
+          if (parts.length === 3) {
+            // Convert dd/mm/yyyy to yyyy-mm-dd
+            const day = parts[0].padStart(2, '0');
+            const month = parts[1].padStart(2, '0');
+            const year = parts[2];
+            const isoDate = `${year}-${month}-${day}`;
+            const date = new Date(isoDate);
+            return isNaN(date.getTime()) ? '' : isoDate;
+          }
+        }
+        
+        // Fallback for other formats
         const date = new Date(dateValue);
         return isNaN(date.getTime()) ? '' : date.toISOString().split('T')[0];
       };
