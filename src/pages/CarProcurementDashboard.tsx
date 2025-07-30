@@ -401,36 +401,36 @@ const CarProcurementDashboard = () => {
                 <SelectTrigger>
                   <SelectValue placeholder="Brand" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Brands</SelectItem>
-                  {brands.map(brand => (
-                    <SelectItem key={brand} value={brand}>{brand}</SelectItem>
-                  ))}
-                </SelectContent>
+                  <SelectContent>
+                    <SelectItem value="all">All Brands</SelectItem>
+                    {brands.filter(brand => brand && brand.trim()).map(brand => (
+                      <SelectItem key={brand} value={brand}>{brand}</SelectItem>
+                    ))}
+                  </SelectContent>
               </Select>
 
               <Select value={filters.model} onValueChange={(value) => setFilters(prev => ({ ...prev, model: value }))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Model" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Models</SelectItem>
-                  {models.map(model => (
-                    <SelectItem key={model} value={model}>{model}</SelectItem>
-                  ))}
-                </SelectContent>
+                  <SelectContent>
+                    <SelectItem value="all">All Models</SelectItem>
+                    {models.filter(model => model && model.trim()).map(model => (
+                      <SelectItem key={model} value={model}>{model}</SelectItem>
+                    ))}
+                  </SelectContent>
               </Select>
 
               <Select value={filters.leaseco} onValueChange={(value) => setFilters(prev => ({ ...prev, leaseco: value }))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Leaseco" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Leasecos</SelectItem>
-                  {leasecos.map(leaseco => (
-                    <SelectItem key={leaseco} value={leaseco}>{leaseco}</SelectItem>
-                  ))}
-                </SelectContent>
+                  <SelectContent>
+                    <SelectItem value="all">All Leasecos</SelectItem>
+                    {leasecos.filter(leaseco => leaseco && leaseco.trim()).map(leaseco => (
+                      <SelectItem key={leaseco} value={leaseco}>{leaseco}</SelectItem>
+                    ))}
+                  </SelectContent>
               </Select>
 
               <Select value={filters.delayed} onValueChange={(value) => setFilters(prev => ({ ...prev, delayed: value }))}>
@@ -465,12 +465,12 @@ const CarProcurementDashboard = () => {
                 <SelectTrigger>
                   <SelectValue placeholder="City" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Cities</SelectItem>
-                  {cities.map(city => (
-                    <SelectItem key={city} value={city}>{city}</SelectItem>
-                  ))}
-                </SelectContent>
+                  <SelectContent>
+                    <SelectItem value="all">All Cities</SelectItem>
+                    {cities.filter(city => city && city.trim()).map(city => (
+                      <SelectItem key={city} value={city}>{city}</SelectItem>
+                    ))}
+                  </SelectContent>
               </Select>
             </div>
 
