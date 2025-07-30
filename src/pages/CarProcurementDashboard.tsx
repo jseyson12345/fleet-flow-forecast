@@ -241,9 +241,22 @@ const CarProcurementDashboard = () => {
     return importData.map((row, index) => {
       const id = row['Ticket ID'] || `imported-${Date.now()}-${index}`;
       
-      // Helper function to parse dates or return undefined/empty string for empty values
+      // Helper function to parse dates or return empty string for empty/null values
       const parseDate = (dateValue: any) => {
-        if (!dateValue || dateValue === '') return '';
+        // Handle all empty/null/undefined cases
+        if (!dateValue || dateValue === '' || dateValue === null || dateValue === undefined) {
+          return '';
+        }
+        
+        // Handle Excel's numeric date format (serial number)
+        if (typeof dateValue === 'number') {
+          // Excel dates start from 1900-01-01, but we need to handle empty cells that might be 0
+          if (dateValue === 0) return '';
+          
+          // Convert Excel serial date to JavaScript date
+          const excelDate = new Date((dateValue - 25569) * 86400 * 1000);
+          return isNaN(excelDate.getTime()) ? '' : excelDate.toISOString().split('T')[0];
+        }
         
         // Handle dd/mm/yyyy format
         if (typeof dateValue === 'string' && dateValue.includes('/')) {
@@ -259,9 +272,13 @@ const CarProcurementDashboard = () => {
           }
         }
         
-        // Fallback for other formats
-        const date = new Date(dateValue);
-        return isNaN(date.getTime()) ? '' : date.toISOString().split('T')[0];
+        // Fallback for other string formats
+        if (typeof dateValue === 'string') {
+          const date = new Date(dateValue);
+          return isNaN(date.getTime()) ? '' : date.toISOString().split('T')[0];
+        }
+        
+        return '';
       };
 
       // Calculate delayed status only if both dates are present
@@ -637,18 +654,18 @@ const CarProcurementDashboard = () => {
                               <div className="space-y-3">
                                 <h3 className="text-lg font-semibold text-foreground border-b pb-2">Key Dates</h3>
                                 <div className="grid grid-cols-1 gap-3">
-                                  <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Internal Use Date</label>
-                                    <p className="text-sm">{new Date(item.internalUsageDate).toLocaleDateString()}</p>
-                                  </div>
-                                  <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Promised Date to Client</label>
-                                    <p className="text-sm">{new Date(item.promisedDate).toLocaleDateString()}</p>
-                                  </div>
-                                  <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Displayed Date to Client</label>
-                                    <p className="text-sm">{new Date(item.displayedDateToClient).toLocaleDateString()}</p>
-                                  </div>
+                                   <div>
+                                     <label className="text-sm font-medium text-muted-foreground">Internal Use Date</label>
+                                     <p className="text-sm">{item.internalUsageDate ? new Date(item.internalUsageDate).toLocaleDateString() : 'Not available'}</p>
+                                   </div>
+                                   <div>
+                                     <label className="text-sm font-medium text-muted-foreground">Promised Date to Client</label>
+                                     <p className="text-sm">{item.promisedDate ? new Date(item.promisedDate).toLocaleDateString() : 'Not available'}</p>
+                                   </div>
+                                   <div>
+                                     <label className="text-sm font-medium text-muted-foreground">Displayed Date to Client</label>
+                                     <p className="text-sm">{item.displayedDateToClient ? new Date(item.displayedDateToClient).toLocaleDateString() : 'Not available'}</p>
+                                   </div>
                                 </div>
                               </div>
 
@@ -775,18 +792,18 @@ const CarProcurementDashboard = () => {
                               <div className="space-y-3">
                                 <h3 className="text-lg font-semibold text-foreground border-b pb-2">Key Dates</h3>
                                 <div className="grid grid-cols-1 gap-3">
-                                  <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Internal Use Date</label>
-                                    <p className="text-sm">{new Date(item.internalUsageDate).toLocaleDateString()}</p>
-                                  </div>
-                                  <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Promised Date to Client</label>
-                                    <p className="text-sm">{new Date(item.promisedDate).toLocaleDateString()}</p>
-                                  </div>
-                                  <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Displayed Date to Client</label>
-                                    <p className="text-sm">{new Date(item.displayedDateToClient).toLocaleDateString()}</p>
-                                  </div>
+                                   <div>
+                                     <label className="text-sm font-medium text-muted-foreground">Internal Use Date</label>
+                                     <p className="text-sm">{item.internalUsageDate ? new Date(item.internalUsageDate).toLocaleDateString() : 'Not available'}</p>
+                                   </div>
+                                   <div>
+                                     <label className="text-sm font-medium text-muted-foreground">Promised Date to Client</label>
+                                     <p className="text-sm">{item.promisedDate ? new Date(item.promisedDate).toLocaleDateString() : 'Not available'}</p>
+                                   </div>
+                                   <div>
+                                     <label className="text-sm font-medium text-muted-foreground">Displayed Date to Client</label>
+                                     <p className="text-sm">{item.displayedDateToClient ? new Date(item.displayedDateToClient).toLocaleDateString() : 'Not available'}</p>
+                                   </div>
                                 </div>
                               </div>
 
@@ -853,8 +870,8 @@ const CarProcurementDashboard = () => {
                         </Sheet>
                       </TableCell>
                       <TableCell>{item.city}</TableCell>
-                      <TableCell>{new Date(item.internalUsageDate).toLocaleDateString()}</TableCell>
-                      <TableCell>{new Date(item.promisedDate).toLocaleDateString()}</TableCell>
+                      <TableCell>{item.internalUsageDate ? new Date(item.internalUsageDate).toLocaleDateString() : 'Not available'}</TableCell>
+                      <TableCell>{item.promisedDate ? new Date(item.promisedDate).toLocaleDateString() : 'Not available'}</TableCell>
                       <TableCell>
                         <Badge variant={item.delayed ? "destructive" : "default"}>
                           {item.delayed ? "Yes" : "No"}
