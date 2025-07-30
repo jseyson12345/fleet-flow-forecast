@@ -241,10 +241,19 @@ const CarProcurementDashboard = () => {
     return importData.map((row, index) => {
       const id = row['Ticket ID'] || `imported-${Date.now()}-${index}`;
       
-      // Calculate delayed status
-      const internalDate = new Date(row['Internal Use Date'] || Date.now());
-      const promisedDate = new Date(row['Promised Date to Client'] || Date.now());
-      const delayed = internalDate > promisedDate;
+      // Helper function to parse dates or return undefined/empty string for empty values
+      const parseDate = (dateValue: any) => {
+        if (!dateValue || dateValue === '') return '';
+        // Handle Excel date format or string date
+        const date = new Date(dateValue);
+        return isNaN(date.getTime()) ? '' : date.toISOString().split('T')[0];
+      };
+
+      // Calculate delayed status only if both dates are present
+      const internalDateStr = parseDate(row['Internal Use Date']);
+      const promisedDateStr = parseDate(row['Promised Date to Client']);
+      const delayed = internalDateStr && promisedDateStr ? 
+        new Date(internalDateStr) > new Date(promisedDateStr) : false;
 
       return {
         id,
@@ -258,31 +267,31 @@ const CarProcurementDashboard = () => {
         leaseco: row['Leaseco'] || '',
         clientName: row['Client Name'] || '',
         city: row['Client City / Location'] || '',
-        internalUsageDate: row['Internal Use Date'] || new Date().toISOString().split('T')[0],
-        promisedDate: row['Promised Date to Client'] || new Date().toISOString().split('T')[0],
-        displayedDateToClient: row['Displayed Date to Client'] || new Date().toISOString().split('T')[0],
+        internalUsageDate: parseDate(row['Internal Use Date']),
+        promisedDate: parseDate(row['Promised Date to Client']),
+        displayedDateToClient: parseDate(row['Displayed Date to Client']),
         delayed,
-        requestDate: row['Leaseco Request Date'] || new Date().toISOString().split('T')[0],
+        requestDate: parseDate(row['Leaseco Request Date']),
         licensePlate: row['License Plate'],
         vin: row['Chassis Number'],
         contractReference: row['Contract Reference'],
-        availabilityDate: row['Delivery Ready Date'],
-        promisedDateAtSigning: row['Promised Date to Client'] || new Date().toISOString().split('T')[0],
-        currentEstimatedDelivery: row['Internal Use Date'] || new Date().toISOString().split('T')[0],
+        availabilityDate: parseDate(row['Delivery Ready Date']),
+        promisedDateAtSigning: parseDate(row['Promised Date to Client']),
+        currentEstimatedDelivery: parseDate(row['Internal Use Date']),
         clientComments: row['Comments'],
-        desiredDeliveryDate: row['Promised Date to Client'] || new Date().toISOString().split('T')[0],
-        contractEndDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000 * 3).toISOString().split('T')[0], // 3 years from now
-        leasecoRequestDate: row['Leaseco Request Date'],
-        etdDate: row['ETD Date'],
-        registrationStartDate: row['Registration Start Date'],
-        deliveryReadyDate: row['Delivery Ready Date'],
-        trackerRequestDate: row['Tracker Request Date'],
-        estimatedInstallationDate: row['Estimated Tracker Installation'],
-        actualInstallationDate: row['Actual Tracker Installation'],
+        desiredDeliveryDate: parseDate(row['Promised Date to Client']),
+        contractEndDate: '', // Don't auto-generate contract end date
+        leasecoRequestDate: parseDate(row['Leaseco Request Date']),
+        etdDate: parseDate(row['ETD Date']),
+        registrationStartDate: parseDate(row['Registration Start Date']),
+        deliveryReadyDate: parseDate(row['Delivery Ready Date']),
+        trackerRequestDate: parseDate(row['Tracker Request Date']),
+        estimatedInstallationDate: parseDate(row['Estimated Tracker Installation']),
+        actualInstallationDate: parseDate(row['Actual Tracker Installation']),
         dealerName: row['Dealer Name'],
         contactPerson: row['Contact Person'],
         phoneEmail: row['Phone/Email'],
-        dealSignedDate: row['Deal Signed Date']
+        dealSignedDate: parseDate(row['Deal Signed Date'])
       };
     });
   };
