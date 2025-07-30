@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -7,7 +7,9 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, Filter, Calendar, User } from 'lucide-react';
+import { ChevronDown, Filter, Calendar, User, Download, Upload } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { useToast } from '@/hooks/use-toast';
 
 interface ProcurementData {
   id: string;
@@ -48,7 +50,42 @@ interface ProcurementData {
   dealerName?: string;
   contactPerson?: string;
   phoneEmail?: string;
+  // Deal signed date
+  dealSignedDate?: string;
 }
+
+// Template column headers for import/export
+const TEMPLATE_HEADERS = [
+  'Ticket ID',
+  'RevelIdCar',
+  'Brand',
+  'Model',
+  'Version',
+  'Color',
+  'Leaseco',
+  'Status',
+  'Project',
+  'License Plate',
+  'Chassis Number',
+  'Contract Reference',
+  'Internal Use Date',
+  'Promised Date to Client',
+  'Displayed Date to Client',
+  'Leaseco Request Date',
+  'ETD Date',
+  'Registration Start Date',
+  'Delivery Ready Date',
+  'Tracker Request Date',
+  'Estimated Tracker Installation',
+  'Actual Tracker Installation',
+  'Dealer Name',
+  'Contact Person',
+  'Phone/Email',
+  'Client Name',
+  'Client City / Location',
+  'Deal Signed Date',
+  'Comments'
+];
 
 // Mock data - in real app this would come from HubSpot
 const mockData: ProcurementData[] = [
@@ -156,7 +193,9 @@ const mockData: ProcurementData[] = [
 ];
 
 const CarProcurementDashboard = () => {
-  const [data] = useState(mockData);
+  const [data, setData] = useState(mockData);
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [filters, setFilters] = useState({
     brand: '',
     model: '',
@@ -184,11 +223,167 @@ const CarProcurementDashboard = () => {
   const leasecos = [...new Set(data.map(item => item.leaseco))];
   const cities = [...new Set(data.map(item => item.city))];
 
+  // Template download function
+  const downloadTemplate = () => {
+    const worksheet = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Car Procurement Template');
+    XLSX.writeFile(workbook, 'car_procurement_template.xlsx');
+    
+    toast({
+      title: "Template Downloaded",
+      description: "The import template has been downloaded successfully.",
+    });
+  };
+
+  // Parse imported data function
+  const parseImportedData = (importData: any[]): ProcurementData[] => {
+    return importData.map((row, index) => {
+      const id = row['Ticket ID'] || `imported-${Date.now()}-${index}`;
+      
+      // Calculate delayed status
+      const internalDate = new Date(row['Internal Use Date'] || Date.now());
+      const promisedDate = new Date(row['Promised Date to Client'] || Date.now());
+      const delayed = internalDate > promisedDate;
+
+      return {
+        id,
+        brand: row['Brand'] || '',
+        model: row['Model'] || '',
+        version: row['Version'] || '',
+        color: row['Color'],
+        revelIdCar: row['RevelIdCar'],
+        status: row['Status'],
+        project: row['Project'],
+        leaseco: row['Leaseco'] || '',
+        clientName: row['Client Name'] || '',
+        city: row['Client City / Location'] || '',
+        internalUsageDate: row['Internal Use Date'] || new Date().toISOString().split('T')[0],
+        promisedDate: row['Promised Date to Client'] || new Date().toISOString().split('T')[0],
+        displayedDateToClient: row['Displayed Date to Client'] || new Date().toISOString().split('T')[0],
+        delayed,
+        requestDate: row['Leaseco Request Date'] || new Date().toISOString().split('T')[0],
+        licensePlate: row['License Plate'],
+        vin: row['Chassis Number'],
+        contractReference: row['Contract Reference'],
+        availabilityDate: row['Delivery Ready Date'],
+        promisedDateAtSigning: row['Promised Date to Client'] || new Date().toISOString().split('T')[0],
+        currentEstimatedDelivery: row['Internal Use Date'] || new Date().toISOString().split('T')[0],
+        clientComments: row['Comments'],
+        desiredDeliveryDate: row['Promised Date to Client'] || new Date().toISOString().split('T')[0],
+        contractEndDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000 * 3).toISOString().split('T')[0], // 3 years from now
+        leasecoRequestDate: row['Leaseco Request Date'],
+        etdDate: row['ETD Date'],
+        registrationStartDate: row['Registration Start Date'],
+        deliveryReadyDate: row['Delivery Ready Date'],
+        trackerRequestDate: row['Tracker Request Date'],
+        estimatedInstallationDate: row['Estimated Tracker Installation'],
+        actualInstallationDate: row['Actual Tracker Installation'],
+        dealerName: row['Dealer Name'],
+        contactPerson: row['Contact Person'],
+        phoneEmail: row['Phone/Email'],
+        dealSignedDate: row['Deal Signed Date']
+      };
+    });
+  };
+
+  // Handle file import
+  const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = e.target?.result;
+        let workbook: XLSX.WorkBook;
+
+        if (file.name.endsWith('.csv')) {
+          workbook = XLSX.read(data, { type: 'binary' });
+        } else {
+          workbook = XLSX.read(data, { type: 'array' });
+        }
+
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+        if (jsonData.length === 0) {
+          toast({
+            title: "Import Error",
+            description: "The file appears to be empty.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Check for required columns
+        const firstRow = jsonData[0] as any;
+        const missingColumns = ['Brand', 'Model', 'Leaseco', 'Client Name'].filter(
+          col => !Object.keys(firstRow).includes(col)
+        );
+
+        if (missingColumns.length > 0) {
+          toast({
+            title: "Import Warning",
+            description: `Missing required columns: ${missingColumns.join(', ')}. Some data may not display correctly.`,
+            variant: "destructive",
+          });
+        }
+
+        const parsedData = parseImportedData(jsonData);
+        setData(parsedData);
+
+        toast({
+          title: "Import Successful",
+          description: `Imported ${parsedData.length} records successfully.`,
+        });
+
+      } catch (error) {
+        console.error('Import error:', error);
+        toast({
+          title: "Import Error",
+          description: "Failed to parse the file. Please check the format and try again.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    if (file.name.endsWith('.csv')) {
+      reader.readAsBinaryString(file);
+    } else {
+      reader.readAsArrayBuffer(file);
+    }
+
+    // Reset the input
+    event.target.value = '';
+  };
+
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Car Procurement Dashboard</h1>
+          <div className="flex gap-2">
+            <Button onClick={downloadTemplate} variant="outline" className="flex items-center gap-2">
+              <Download className="h-4 w-4" />
+              Download Import Template (.xlsx)
+            </Button>
+            <Button 
+              onClick={() => fileInputRef.current?.click()} 
+              className="flex items-center gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              Import Data
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.csv"
+              onChange={handleFileImport}
+              style={{ display: 'none' }}
+            />
+          </div>
         </div>
 
         {/* Filters Section */}
