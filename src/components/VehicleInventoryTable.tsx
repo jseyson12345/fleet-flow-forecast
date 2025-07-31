@@ -152,16 +152,16 @@ export const VehicleInventoryTable: React.FC = () => {
     return timeFrameOptions.find(option => option.value === timeFrame) || timeFrameOptions[0];
   };
 
-  // EOS calculation should always use monthly burn rate regardless of time frame
   const calculateEstimatedOutOfStockDate = (stock: number, burnRate: number): Date | null => {
-    if (burnRate === 0) return null;
+    if (!stock || !burnRate || burnRate <= 0) return null;
     
-    const monthsUntilEmpty = stock / burnRate;
-    const today = new Date();
-    const eosDate = new Date(today);
-    eosDate.setMonth(today.getMonth() + monthsUntilEmpty);
+    const timeFrameConfig = getTimeFrameConfig();
+    const adjustedBurnRate = getAdjustedBurnRate(burnRate);
+    const daysUntilOutOfStock = stock / adjustedBurnRate;
     
-    return eosDate;
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + daysUntilOutOfStock);
+    return futureDate;
   };
 
   const getAdjustedBurnRate = (burnRate: number): number => {
@@ -186,7 +186,9 @@ export const VehicleInventoryTable: React.FC = () => {
     if (factoryLeadTimeMonths === null || !eosDate) return null;
     
     const recommendedDate = new Date(eosDate);
-    recommendedDate.setMonth(recommendedDate.getMonth() - factoryLeadTimeMonths);
+    // Convert decimal months to days (e.g., 4.5 months = 135 days)
+    const daysToSubtract = factoryLeadTimeMonths * 30;
+    recommendedDate.setDate(recommendedDate.getDate() - daysToSubtract);
     
     return recommendedDate;
   };
@@ -218,18 +220,17 @@ export const VehicleInventoryTable: React.FC = () => {
   };
 
   const updateFactoryOrderLeadTime = (id: string, value: string) => {
-    const numValue = value === '' ? null : parseInt(value, 10);
-    if (numValue !== null && (isNaN(numValue) || numValue < 0)) return;
+    const parsedValue = value === '' ? null : parseFloat(value);
     
     // Find the vehicle and update both data and FLT storage
     setData(prev => prev.map(item => {
       if (item.id === id) {
-        const updatedItem = { ...item, factoryOrderLeadTime: numValue };
+        const updatedItem = { ...item, factoryOrderLeadTime: parsedValue };
         // Store FLT value by modelId for future imports
-        if (item.modelId && numValue !== null) {
+        if (item.modelId && parsedValue !== null) {
           setFltValues(prevFlt => ({
             ...prevFlt,
-            [item.modelId!]: numValue
+            [item.modelId!]: parsedValue
           }));
         }
         return updatedItem;
@@ -658,6 +659,7 @@ export const VehicleInventoryTable: React.FC = () => {
                       <TableCell className="text-center">
                         <Input
                           type="number"
+                          step="0.1"
                           min="0"
                           value={vehicle.factoryOrderLeadTime ?? ''}
                           onChange={(e) => updateFactoryOrderLeadTime(vehicle.id, e.target.value)}
