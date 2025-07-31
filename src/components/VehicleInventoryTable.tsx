@@ -41,11 +41,11 @@ interface FLTStorage {
 }
 
 const timeFrameOptions = [
-  { value: 'week', label: 'Per Week', multiplier: 1 },
-  { value: 'day', label: 'Per Day', multiplier: 7 },
-  { value: '5days', label: 'Last 5 Days', multiplier: 1.4 },
-  { value: '30days', label: 'Last 30 Days', multiplier: 0.233 },
-  { value: 'month', label: 'Per Month', multiplier: 0.25 },
+  { value: 'week', label: 'Per Week', multiplier: 7 },
+  { value: 'day', label: 'Per Day', multiplier: 1 },
+  { value: '5days', label: 'Last 5 Days', multiplier: 5 },
+  { value: '30days', label: 'Last 30 Days', multiplier: 30 },
+  { value: 'month', label: 'Per Month', multiplier: 30 },
 ];
 
 const STORAGE_KEYS = {
