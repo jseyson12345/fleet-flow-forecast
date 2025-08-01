@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, Filter, Calendar, User, Download, Upload } from 'lucide-react';
+import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
+import { ChevronDown, Filter, Calendar, User, Download, Upload, AlertCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useToast } from '@/hooks/use-toast';
 
@@ -192,8 +193,10 @@ const mockData: ProcurementData[] = [
   }
 ];
 
+const STORAGE_KEY = 'car_procurement_data';
+
 const CarProcurementDashboard = () => {
-  const [data, setData] = useState(mockData);
+  const [data, setData] = useState<ProcurementData[]>([]);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [filters, setFilters] = useState({
@@ -207,6 +210,30 @@ const CarProcurementDashboard = () => {
     city: ''
   });
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+
+  // Load persisted data on mount
+  useEffect(() => {
+    const savedData = localStorage.getItem(STORAGE_KEY);
+    if (savedData) {
+      try {
+        setData(JSON.parse(savedData));
+      } catch (error) {
+        console.error('Failed to load saved data:', error);
+        setData(mockData);
+      }
+    } else {
+      setData(mockData);
+    }
+  }, []);
+
+  // Save data to localStorage whenever it changes
+  useEffect(() => {
+    if (data.length > 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+  }, [data]);
 
   const filteredData = data.filter(item => {
     return Object.entries(filters).every(([key, value]) => {
@@ -217,6 +244,17 @@ const CarProcurementDashboard = () => {
       return item[key as keyof ProcurementData]?.toString().toLowerCase().includes(value.toLowerCase());
     });
   });
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const endIndex = startIndex + rowsPerPage;
+  const paginatedData = filteredData.slice(startIndex, endIndex);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters]);
 
   const brands = [...new Set(data.map(item => item.brand))];
   const models = [...new Set(data.map(item => item.model))];
@@ -400,6 +438,52 @@ const CarProcurementDashboard = () => {
     event.target.value = '';
   };
 
+  // Export filtered data function
+  const exportFilteredData = () => {
+    const exportData = filteredData.map(item => ({
+      'Ticket ID': item.id,
+      'RevelIdCar': item.revelIdCar || '',
+      'Brand': item.brand,
+      'Model': item.model,
+      'Version': item.version,
+      'Color': item.color || '',
+      'Leaseco': item.leaseco,
+      'Status': item.status || '',
+      'Project': item.project || '',
+      'License Plate': item.licensePlate || '',
+      'Chassis Number': item.vin || '',
+      'Contract Reference': item.contractReference || '',
+      'Internal Use Date': item.internalUsageDate,
+      'Promised Date to Client': item.promisedDate,
+      'Displayed Date to Client': item.displayedDateToClient,
+      'Leaseco Request Date': item.leasecoRequestDate || '',
+      'ETD Date': item.etdDate || '',
+      'Registration Start Date': item.registrationStartDate || '',
+      'Delivery Ready Date': item.deliveryReadyDate || '',
+      'Tracker Request Date': item.trackerRequestDate || '',
+      'Estimated Tracker Installation': item.estimatedInstallationDate || '',
+      'Actual Tracker Installation': item.actualInstallationDate || '',
+      'Dealer Name': item.dealerName || '',
+      'Contact Person': item.contactPerson || '',
+      'Phone/Email': item.phoneEmail || '',
+      'Client Name': item.clientName,
+      'Client City / Location': item.city,
+      'Deal Signed Date': item.dealSignedDate || '',
+      'Comments': item.clientComments || '',
+      'Delayed': item.delayed ? 'Yes' : 'No'
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Car Procurement Data');
+    XLSX.writeFile(workbook, `car_procurement_filtered_${new Date().toISOString().split('T')[0]}.xlsx`);
+    
+    toast({
+      title: "Export Complete",
+      description: `Exported ${exportData.length} filtered records to Excel file.`,
+    });
+  };
+
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -409,6 +493,10 @@ const CarProcurementDashboard = () => {
             <Button onClick={downloadTemplate} variant="outline" className="flex items-center gap-2">
               <Download className="h-4 w-4" />
               Download Import Template (.xlsx)
+            </Button>
+            <Button onClick={exportFilteredData} variant="outline" className="flex items-center gap-2">
+              <Download className="h-4 w-4" />
+              Export Filtered Data (.xlsx)
             </Button>
             <Button 
               onClick={() => fileInputRef.current?.click()} 
@@ -554,8 +642,23 @@ const CarProcurementDashboard = () => {
 
         {/* Data Table */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Procurement Operations ({filteredData.length} records)</CardTitle>
+            <div className="flex items-center gap-2">
+              <label htmlFor="rowsPerPage" className="text-sm font-medium">
+                Rows per page:
+              </label>
+              <Select value={rowsPerPage.toString()} onValueChange={(value) => setRowsPerPage(parseInt(value))}>
+                <SelectTrigger id="rowsPerPage" className="w-20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="rounded-md border">
@@ -574,15 +677,28 @@ const CarProcurementDashboard = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredData.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>
-                        <Sheet>
-                          <SheetTrigger asChild>
-                            <Button variant="link" className="p-0 h-auto font-medium text-primary hover:underline">
-                              {item.brand}
-                            </Button>
-                          </SheetTrigger>
+                  {paginatedData.map((item) => {
+                    // Check if client cancelled (Deal Signed Date is empty)
+                    const isCancelled = !item.dealSignedDate || item.dealSignedDate === '';
+                    
+                    return (
+                    <TableRow key={item.id} className={isCancelled ? "bg-destructive/10" : ""}>
+                      <TableCell className="relative">
+                        <div className="flex items-center gap-2">
+                          {isCancelled && (
+                            <div className="flex items-center gap-1">
+                              <AlertCircle className="h-4 w-4 text-destructive" />
+                              <Badge variant="destructive" className="text-xs">
+                                Cancelled
+                              </Badge>
+                            </div>
+                          )}
+                          <Sheet>
+                            <SheetTrigger asChild>
+                              <Button variant="link" className="p-0 h-auto font-medium text-primary hover:underline">
+                                {item.brand}
+                              </Button>
+                            </SheetTrigger>
                           <SheetContent className="w-[500px] overflow-y-auto">
                             <SheetHeader>
                               <SheetTitle className="flex items-center gap-2">
@@ -753,6 +869,7 @@ const CarProcurementDashboard = () => {
                             </div>
                           </SheetContent>
                         </Sheet>
+                        </div>
                       </TableCell>
                       <TableCell>{item.model}</TableCell>
                       <TableCell>{item.version}</TableCell>
@@ -878,10 +995,90 @@ const CarProcurementDashboard = () => {
                         </Badge>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
+            
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="mt-4 flex justify-center">
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious 
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (currentPage > 1) setCurrentPage(currentPage - 1);
+                        }}
+                        className={currentPage <= 1 ? "pointer-events-none opacity-50" : ""}
+                      />
+                    </PaginationItem>
+                    
+                    {/* Page numbers */}
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      
+                      return (
+                        <PaginationItem key={pageNum}>
+                          <PaginationLink
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setCurrentPage(pageNum);
+                            }}
+                            isActive={currentPage === pageNum}
+                          >
+                            {pageNum}
+                          </PaginationLink>
+                        </PaginationItem>
+                      );
+                    })}
+                    
+                    {totalPages > 5 && currentPage < totalPages - 2 && (
+                      <>
+                        <PaginationItem>
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                        <PaginationItem>
+                          <PaginationLink
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setCurrentPage(totalPages);
+                            }}
+                          >
+                            {totalPages}
+                          </PaginationLink>
+                        </PaginationItem>
+                      </>
+                    )}
+                    
+                    <PaginationItem>
+                      <PaginationNext 
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+                        }}
+                        className={currentPage >= totalPages ? "pointer-events-none opacity-50" : ""}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

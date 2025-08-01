@@ -218,7 +218,7 @@ export const VehicleInventoryTable: React.FC = () => {
   };
 
   const updateFactoryOrderLeadTime = (id: string, value: string) => {
-    const numValue = value === '' ? null : parseInt(value, 10);
+    const numValue = value === '' ? null : parseFloat(value);
     if (numValue !== null && (isNaN(numValue) || numValue < 0)) return;
     
     // Find the vehicle and update both data and FLT storage
@@ -421,6 +421,34 @@ export const VehicleInventoryTable: React.FC = () => {
     event.target.value = '';
   };
 
+  const handleExport = () => {
+    const exportData = sortedData.map(vehicle => ({
+      'Model ID': vehicle.modelId || '',
+      'Brand': vehicle.brand,
+      'Model': vehicle.model,
+      'Version': vehicle.version,
+      'Available Stock': vehicle.availableStock,
+      'Burn Rate (monthly)': vehicle.burnRate,
+      'Factory Lead Time (months)': vehicle.factoryOrderLeadTime || '',
+      'EOS Date': formatDate(calculateEstimatedOutOfStockDate(vehicle.availableStock, vehicle.burnRate)),
+      'Recommended Order Date': formatDate(calculateRecommendedOrderDate(
+        calculateEstimatedOutOfStockDate(vehicle.availableStock, vehicle.burnRate), 
+        vehicle.factoryOrderLeadTime
+      )),
+      'Status': getStockStatus(calculateEstimatedOutOfStockDate(vehicle.availableStock, vehicle.burnRate)).label
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Vehicle Inventory');
+    XLSX.writeFile(workbook, `vehicle_inventory_${new Date().toISOString().split('T')[0]}.xlsx`);
+    
+    toast({
+      title: "Export Complete",
+      description: `Exported ${exportData.length} vehicles to Excel file.`,
+    });
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -465,7 +493,7 @@ export const VehicleInventoryTable: React.FC = () => {
                 <Upload className="h-4 w-4" />
                 Import Data
               </Button>
-              <Button variant="outline" className="gap-2">
+              <Button variant="outline" className="gap-2" onClick={handleExport}>
                 <Download className="h-4 w-4" />
                 Export
               </Button>
@@ -659,6 +687,7 @@ export const VehicleInventoryTable: React.FC = () => {
                         <Input
                           type="number"
                           min="0"
+                          step="0.1"
                           value={vehicle.factoryOrderLeadTime ?? ''}
                           onChange={(e) => updateFactoryOrderLeadTime(vehicle.id, e.target.value)}
                           placeholder="Enter months"
