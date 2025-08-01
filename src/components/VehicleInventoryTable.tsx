@@ -152,12 +152,13 @@ export const VehicleInventoryTable: React.FC = () => {
     return timeFrameOptions.find(option => option.value === timeFrame) || timeFrameOptions[0];
   };
 
-  const calculateEstimatedOutOfStockDate = (stock: number, burnRate: number): Date | null => {
-    if (!stock || !burnRate || burnRate <= 0) return null;
+  const calculateEstimatedOutOfStockDate = (stock: number, monthlyBurnRate: number): Date | null => {
+    if (stock <= 0 || monthlyBurnRate <= 0) return null;
     
-    const timeFrameConfig = getTimeFrameConfig();
-    const adjustedBurnRate = getAdjustedBurnRate(burnRate);
-    const daysUntilOutOfStock = stock / adjustedBurnRate;
+    // Convert monthly burn rate to daily burn rate for EOS calculation
+    const dailyBurnRate = monthlyBurnRate / 30;
+    
+    const daysUntilOutOfStock = stock / dailyBurnRate;
     
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + daysUntilOutOfStock);
@@ -165,8 +166,27 @@ export const VehicleInventoryTable: React.FC = () => {
   };
 
   const getAdjustedBurnRate = (burnRate: number): number => {
-    const config = getTimeFrameConfig();
-    return Math.round((burnRate / config.multiplier) * 10) / 10;
+    // burnRate is always stored as monthly, convert to selected time frame
+    let adjustedRate: number;
+    switch (timeFrame) {
+      case 'week':
+        adjustedRate = burnRate / 4; // Weekly = Monthly / 4
+        break;
+      case 'day':
+        adjustedRate = burnRate / 30; // Daily = Monthly / 30
+        break;
+      case '5days':
+        adjustedRate = (burnRate / 30) * 5; // 5 days worth = Daily * 5
+        break;
+      case '30days':
+        adjustedRate = burnRate; // 30 days = Monthly
+        break;
+      case 'month':
+      default:
+        adjustedRate = burnRate; // Monthly (default)
+        break;
+    }
+    return Math.round(adjustedRate * 10) / 10;
   };
 
   const getStockStatus = (eosDate: Date | null): { color: string; label: string } => {
@@ -344,6 +364,7 @@ export const VehicleInventoryTable: React.FC = () => {
       model: row.Model?.toString() || '',
       version: row.Version?.toString() || '',
       availableStock: Number(row['Available Stock']) || 0,
+      // Always store burn rate as monthly - imported data is always monthly regardless of current time frame
       burnRate: Number(row['Burn Rate']) || 0,
       factoryOrderLeadTime: null,
     }));
