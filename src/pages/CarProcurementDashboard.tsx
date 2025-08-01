@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, Filter, Calendar, User, Download, Upload, AlertTriangle } from 'lucide-react';
+import { ChevronDown, Filter, Calendar, User, Download, Upload } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useToast } from '@/hooks/use-toast';
 
@@ -152,8 +152,7 @@ const mockData: ProcurementData[] = [
     contractEndDate: '2027-02-25',
     leasecoRequestDate: '2024-01-17',
     trackerRequestDate: '2024-02-15',
-    estimatedInstallationDate: '2024-02-20',
-    dealSignedDate: '2024-01-20'
+    estimatedInstallationDate: '2024-02-20'
   },
   {
     id: '3',
@@ -195,7 +194,6 @@ const mockData: ProcurementData[] = [
 
 const CarProcurementDashboard = () => {
   const [data, setData] = useState(mockData);
-  const [rowsPerPage, setRowsPerPage] = useState(25);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [filters, setFilters] = useState({
@@ -209,24 +207,6 @@ const CarProcurementDashboard = () => {
     city: ''
   });
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-
-  // Load persisted data on component mount
-  useEffect(() => {
-    const savedData = localStorage.getItem('carProcurementData');
-    if (savedData) {
-      try {
-        const parsedData = JSON.parse(savedData);
-        setData(parsedData);
-      } catch (error) {
-        console.error('Error loading saved data:', error);
-      }
-    }
-  }, []);
-
-  // Save data to localStorage whenever data changes
-  useEffect(() => {
-    localStorage.setItem('carProcurementData', JSON.stringify(data));
-  }, [data]);
 
   const filteredData = data.filter(item => {
     return Object.entries(filters).every(([key, value]) => {
@@ -242,63 +222,6 @@ const CarProcurementDashboard = () => {
   const models = [...new Set(data.map(item => item.model))];
   const leasecos = [...new Set(data.map(item => item.leaseco))];
   const cities = [...new Set(data.map(item => item.city))];
-
-  // Get current page data
-  const paginatedData = filteredData.slice(0, rowsPerPage);
-
-  // Export filtered data function
-  const exportFilteredData = () => {
-    if (filteredData.length === 0) {
-      toast({
-        title: "No Data to Export",
-        description: "There are no records matching the current filters.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const exportData = filteredData.map(item => ({
-      'Ticket ID': item.id,
-      'RevelIdCar': item.revelIdCar || '',
-      'Brand': item.brand,
-      'Model': item.model,
-      'Version': item.version,
-      'Color': item.color || '',
-      'Leaseco': item.leaseco,
-      'Status': item.status || '',
-      'Project': item.project || '',
-      'License Plate': item.licensePlate || '',
-      'Chassis Number': item.vin || '',
-      'Contract Reference': item.contractReference || '',
-      'Internal Use Date': item.internalUsageDate,
-      'Promised Date to Client': item.promisedDate,
-      'Displayed Date to Client': item.displayedDateToClient,
-      'Leaseco Request Date': item.leasecoRequestDate || '',
-      'ETD Date': item.etdDate || '',
-      'Registration Start Date': item.registrationStartDate || '',
-      'Delivery Ready Date': item.deliveryReadyDate || '',
-      'Tracker Request Date': item.trackerRequestDate || '',
-      'Estimated Tracker Installation': item.estimatedInstallationDate || '',
-      'Actual Tracker Installation': item.actualInstallationDate || '',
-      'Dealer Name': item.dealerName || '',
-      'Contact Person': item.contactPerson || '',
-      'Phone/Email': item.phoneEmail || '',
-      'Client Name': item.clientName,
-      'Client City / Location': item.city,
-      'Deal Signed Date': item.dealSignedDate || '',
-      'Comments': item.clientComments || ''
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Filtered Car Procurement Data');
-    XLSX.writeFile(workbook, `car_procurement_filtered_${new Date().toISOString().split('T')[0]}.xlsx`);
-    
-    toast({
-      title: "Export Successful",
-      description: `Exported ${filteredData.length} filtered records to Excel.`,
-    });
-  };
 
   // Template download function
   const downloadTemplate = () => {
@@ -487,10 +410,6 @@ const CarProcurementDashboard = () => {
               <Download className="h-4 w-4" />
               Download Import Template (.xlsx)
             </Button>
-            <Button onClick={exportFilteredData} variant="outline" className="flex items-center gap-2">
-              <Download className="h-4 w-4" />
-              Export Filtered Data (.xlsx)
-            </Button>
             <Button 
               onClick={() => fileInputRef.current?.click()} 
               className="flex items-center gap-2"
@@ -636,29 +555,13 @@ const CarProcurementDashboard = () => {
         {/* Data Table */}
         <Card>
           <CardHeader>
-            <div className="flex justify-between items-center">
-              <CardTitle>Procurement Operations ({filteredData.length} records)</CardTitle>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Show rows:</span>
-                <Select value={rowsPerPage.toString()} onValueChange={(value) => setRowsPerPage(parseInt(value))}>
-                  <SelectTrigger className="w-20">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="25">25</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                    <SelectItem value="100">100</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            <CardTitle>Procurement Operations ({filteredData.length} records)</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Status</TableHead>
                     <TableHead>Brand</TableHead>
                     <TableHead>Model</TableHead>
                     <TableHead>Version</TableHead>
@@ -671,16 +574,8 @@ const CarProcurementDashboard = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedData.map((item) => (
+                  {filteredData.map((item) => (
                     <TableRow key={item.id}>
-                      <TableCell>
-                        {!item.dealSignedDate && (
-                          <div className="flex items-center gap-1">
-                            <AlertTriangle className="h-4 w-4 text-destructive" />
-                            <Badge variant="destructive">Cancelled</Badge>
-                          </div>
-                        )}
-                      </TableCell>
                       <TableCell>
                         <Sheet>
                           <SheetTrigger asChild>
@@ -770,15 +665,6 @@ const CarProcurementDashboard = () => {
                                    <div>
                                      <label className="text-sm font-medium text-muted-foreground">Displayed Date to Client</label>
                                      <p className="text-sm">{item.displayedDateToClient ? new Date(item.displayedDateToClient).toLocaleDateString() : 'Not available'}</p>
-                                   </div>
-                                   <div>
-                                     <label className="text-sm font-medium text-muted-foreground">Deal Signed Date</label>
-                                     <div className="flex items-center gap-2">
-                                       <p className="text-sm">{item.dealSignedDate ? new Date(item.dealSignedDate).toLocaleDateString() : 'Not signed'}</p>
-                                       {!item.dealSignedDate && (
-                                         <Badge variant="destructive" className="text-xs">Cancelled</Badge>
-                                       )}
-                                     </div>
                                    </div>
                                 </div>
                               </div>
@@ -917,15 +803,6 @@ const CarProcurementDashboard = () => {
                                    <div>
                                      <label className="text-sm font-medium text-muted-foreground">Displayed Date to Client</label>
                                      <p className="text-sm">{item.displayedDateToClient ? new Date(item.displayedDateToClient).toLocaleDateString() : 'Not available'}</p>
-                                   </div>
-                                   <div>
-                                     <label className="text-sm font-medium text-muted-foreground">Deal Signed Date</label>
-                                     <div className="flex items-center gap-2">
-                                       <p className="text-sm">{item.dealSignedDate ? new Date(item.dealSignedDate).toLocaleDateString() : 'Not signed'}</p>
-                                       {!item.dealSignedDate && (
-                                         <Badge variant="destructive" className="text-xs">Cancelled</Badge>
-                                       )}
-                                     </div>
                                    </div>
                                 </div>
                               </div>

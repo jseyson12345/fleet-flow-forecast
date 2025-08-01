@@ -41,11 +41,11 @@ interface FLTStorage {
 }
 
 const timeFrameOptions = [
-  { value: 'week', label: 'Per Week', multiplier: 7 },
-  { value: 'day', label: 'Per Day', multiplier: 1 },
-  { value: '5days', label: 'Last 5 Days', multiplier: 5 },
-  { value: '30days', label: 'Last 30 Days', multiplier: 30 },
-  { value: 'month', label: 'Per Month', multiplier: 30 },
+  { value: 'week', label: 'Per Week', multiplier: 1 },
+  { value: 'day', label: 'Per Day', multiplier: 7 },
+  { value: '5days', label: 'Last 5 Days', multiplier: 1.4 },
+  { value: '30days', label: 'Last 30 Days', multiplier: 0.233 },
+  { value: 'month', label: 'Per Month', multiplier: 0.25 },
 ];
 
 const STORAGE_KEYS = {
@@ -152,41 +152,21 @@ export const VehicleInventoryTable: React.FC = () => {
     return timeFrameOptions.find(option => option.value === timeFrame) || timeFrameOptions[0];
   };
 
-  const calculateEstimatedOutOfStockDate = (stock: number, monthlyBurnRate: number): Date | null => {
-    if (stock <= 0 || monthlyBurnRate <= 0) return null;
+  // EOS calculation should always use monthly burn rate regardless of time frame
+  const calculateEstimatedOutOfStockDate = (stock: number, burnRate: number): Date | null => {
+    if (burnRate === 0) return null;
     
-    // Convert monthly burn rate to daily burn rate for EOS calculation
-    const dailyBurnRate = monthlyBurnRate / 30;
+    const monthsUntilEmpty = stock / burnRate;
+    const today = new Date();
+    const eosDate = new Date(today);
+    eosDate.setMonth(today.getMonth() + monthsUntilEmpty);
     
-    const daysUntilOutOfStock = stock / dailyBurnRate;
-    
-    const futureDate = new Date();
-    futureDate.setDate(futureDate.getDate() + daysUntilOutOfStock);
-    return futureDate;
+    return eosDate;
   };
 
   const getAdjustedBurnRate = (burnRate: number): number => {
-    // burnRate is always stored as monthly, convert to selected time frame
-    let adjustedRate: number;
-    switch (timeFrame) {
-      case 'week':
-        adjustedRate = burnRate / 4; // Weekly = Monthly / 4
-        break;
-      case 'day':
-        adjustedRate = burnRate / 30; // Daily = Monthly / 30
-        break;
-      case '5days':
-        adjustedRate = (burnRate / 30) * 5; // 5 days worth = Daily * 5
-        break;
-      case '30days':
-        adjustedRate = burnRate; // 30 days = Monthly
-        break;
-      case 'month':
-      default:
-        adjustedRate = burnRate; // Monthly (default)
-        break;
-    }
-    return Math.round(adjustedRate * 10) / 10;
+    const config = getTimeFrameConfig();
+    return Math.round((burnRate / config.multiplier) * 10) / 10;
   };
 
   const getStockStatus = (eosDate: Date | null): { color: string; label: string } => {
@@ -206,9 +186,7 @@ export const VehicleInventoryTable: React.FC = () => {
     if (factoryLeadTimeMonths === null || !eosDate) return null;
     
     const recommendedDate = new Date(eosDate);
-    // Convert decimal months to days (e.g., 4.5 months = 135 days)
-    const daysToSubtract = factoryLeadTimeMonths * 30;
-    recommendedDate.setDate(recommendedDate.getDate() - daysToSubtract);
+    recommendedDate.setMonth(recommendedDate.getMonth() - factoryLeadTimeMonths);
     
     return recommendedDate;
   };
@@ -240,17 +218,18 @@ export const VehicleInventoryTable: React.FC = () => {
   };
 
   const updateFactoryOrderLeadTime = (id: string, value: string) => {
-    const parsedValue = value === '' ? null : parseFloat(value);
+    const numValue = value === '' ? null : parseInt(value, 10);
+    if (numValue !== null && (isNaN(numValue) || numValue < 0)) return;
     
     // Find the vehicle and update both data and FLT storage
     setData(prev => prev.map(item => {
       if (item.id === id) {
-        const updatedItem = { ...item, factoryOrderLeadTime: parsedValue };
+        const updatedItem = { ...item, factoryOrderLeadTime: numValue };
         // Store FLT value by modelId for future imports
-        if (item.modelId && parsedValue !== null) {
+        if (item.modelId && numValue !== null) {
           setFltValues(prevFlt => ({
             ...prevFlt,
-            [item.modelId!]: parsedValue
+            [item.modelId!]: numValue
           }));
         }
         return updatedItem;
@@ -364,7 +343,6 @@ export const VehicleInventoryTable: React.FC = () => {
       model: row.Model?.toString() || '',
       version: row.Version?.toString() || '',
       availableStock: Number(row['Available Stock']) || 0,
-      // Always store burn rate as monthly - imported data is always monthly regardless of current time frame
       burnRate: Number(row['Burn Rate']) || 0,
       factoryOrderLeadTime: null,
     }));
@@ -680,7 +658,6 @@ export const VehicleInventoryTable: React.FC = () => {
                       <TableCell className="text-center">
                         <Input
                           type="number"
-                          step="0.1"
                           min="0"
                           value={vehicle.factoryOrderLeadTime ?? ''}
                           onChange={(e) => updateFactoryOrderLeadTime(vehicle.id, e.target.value)}
